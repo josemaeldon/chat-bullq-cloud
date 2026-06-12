@@ -111,4 +111,14 @@ export class ChannelsController {
   testConnection(@Param('id') id: string, @CurrentOrg('id') orgId: string) {
     return this.service.testConnection(id, orgId);
   }
+
+  @Get(':id/evolution-go/qr')
+  @Roles(OrgRole.OWNER, OrgRole.ADMIN)
+  @ApiOperation({ summary: 'Get the Evolution GO pairing QR code' })
+  getEvolutionGoQr(
+    @Param('id') id: string,
+    @CurrentOrg('id') orgId: string,
+  ) {
+    return this.service.getEvolutionGoQr(id, orgId);
+  }
 }

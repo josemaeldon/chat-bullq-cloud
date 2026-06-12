@@ -7,9 +7,7 @@ receber e enviar mensagens do WhatsApp.
 
 1. Uma instalação acessível da Evolution GO.
 2. O `GLOBAL_API_KEY` da instalação.
-3. Uma instância já criada na Evolution GO.
-4. O ID da instância.
-5. `APP_URL` no backend apontando para uma URL HTTPS pública.
+3. `APP_URL` no backend apontando para uma URL HTTPS pública.
 
 Para receber mídias, configure a Evolution GO com uma destas opções:
 
@@ -35,13 +33,17 @@ No painel:
 2. Escolha `WhatsApp (Evolution GO)`.
 3. Informe a URL base da Evolution GO.
 4. Informe a API Key global.
-5. Informe o Instance ID.
-6. Opcionalmente informe o token da instância.
-7. Crie o canal e use `Testar conexão`.
+5. Escolha `Criar nova` ou `Usar existente`.
+6. Para uma nova instância, informe o nome e, opcionalmente, token e proxy.
+7. Para uma existente, informe o Instance ID e, opcionalmente, o token.
+8. Crie o canal e clique em `Conectar WhatsApp` para ler o QR Code.
 
-Quando o token não é informado, o backend consulta
-`GET /instance/info/:instanceId` com a chave global e salva o token específico
-da instância. As demais rotas usam esse token no header `apikey`.
+No modo `Criar nova`, o backend chama `POST /instance/create`. Quando o token
+não é informado, o Chat BullQ gera um UUID seguro porque versões atuais da
+Evolution GO exigem o campo mesmo que a referência o apresente como opcional.
+No modo `Usar existente`, o backend consulta `GET /instance/info/:instanceId`
+quando precisa descobrir o token. As demais rotas usam esse token no header
+`apikey`.
 
 ## Webhook
 
@@ -75,6 +77,8 @@ O webhook é roteado por `instanceId` e autenticado comparando
 
 - `GET /instance/info/:instanceId`
 - `GET /instance/status`
+- `GET /instance/qr`
+- `POST /instance/create`
 - `POST /instance/connect`
 - `POST /send/text`
 - `POST /send/media`

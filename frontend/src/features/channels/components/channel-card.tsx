@@ -16,6 +16,8 @@ import {
   XCircle,
   Lock,
   Globe,
+  QrCode,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Channel } from '../services/channels.service';
@@ -40,6 +42,7 @@ export function ChannelCard({ channel, onUpdate }: ChannelCardProps) {
   const [isTesting, setIsTesting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const meta = channelTypeMap[channel.type] || { label: channel.type, icon: MessageSquare, color: 'bg-gray-500' };
   const Icon = meta.icon;
   const sync = useChannelSync({ channelId: channel.id, channelType: channel.type });
@@ -246,6 +249,15 @@ export function ChannelCard({ channel, onUpdate }: ChannelCardProps) {
               Sincronizar
             </button>
           )}
+          {channel.type === 'WHATSAPP_EVOLUTION_GO' && (
+            <button
+              onClick={() => setShowQr(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400"
+            >
+              <QrCode className="h-3 w-3" />
+              Conectar WhatsApp
+            </button>
+          )}
           <button
             onClick={handleToggle}
             className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
@@ -309,6 +321,86 @@ export function ChannelCard({ channel, onUpdate }: ChannelCardProps) {
         onClose={() => setEditing(false)}
         onSaved={onUpdate}
       />
+      <EvolutionGoQrDialog
+        channel={showQr ? channel : null}
+        onClose={() => setShowQr(false)}
+      />
+    </div>
+  );
+}
+
+function EvolutionGoQrDialog({
+  channel,
+  onClose,
+}: {
+  channel: Channel | null;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+
+  const loadQr = async () => {
+    if (!channel) return;
+    setLoading(true);
+    try {
+      const result = await channelsService.getEvolutionGoQr(channel.id);
+      setConnected(result.connected);
+      setQrCode(result.qrCode);
+      if (result.connected) toast.success('WhatsApp já está conectado');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao buscar QR Code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!channel) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-zinc-900">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-md p-1 text-zinc-400 hover:text-zinc-700"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <EvolutionGoIcon className="mx-auto h-12 w-12" />
+        <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Conectar {channel.name}
+        </h3>
+        <p className="mt-1 text-sm text-zinc-500">
+          No WhatsApp, abra Aparelhos conectados e escaneie o QR Code.
+        </p>
+
+        <div className="mt-5 flex min-h-64 items-center justify-center rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800">
+          {loading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          ) : connected ? (
+            <div className="text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="mx-auto h-12 w-12" />
+              <p className="mt-2 text-sm font-medium">WhatsApp conectado</p>
+            </div>
+          ) : qrCode ? (
+            <img src={qrCode} alt="QR Code da Evolution GO" className="h-56 w-56" />
+          ) : (
+            <QrCode className="h-16 w-16 text-zinc-300 dark:text-zinc-600" />
+          )}
+        </div>
+
+        {!connected && (
+          <button
+            type="button"
+            onClick={loadQr}
+            disabled={loading}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {qrCode ? 'Atualizar QR Code' : 'Gerar QR Code'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

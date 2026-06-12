@@ -9,6 +9,21 @@ interface EvolutionGoConfig {
   instanceToken?: string;
 }
 
+export interface CreateEvolutionGoInstanceInput {
+  baseUrl: string;
+  apiKey: string;
+  name: string;
+  token: string;
+  proxy?: {
+    host: string;
+    address?: string;
+    port: string;
+    username: string;
+    password: string;
+    protocol?: string;
+  };
+}
+
 @Injectable()
 export class EvolutionGoHttpClient {
   private readonly logger = new Logger(EvolutionGoHttpClient.name);
@@ -37,6 +52,34 @@ export class EvolutionGoHttpClient {
       },
       timeout: 30000,
     });
+  }
+
+  async createInstance(input: CreateEvolutionGoInstanceInput): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${input.baseUrl.replace(/\/+$/, '')}/instance/create`,
+        {
+          name: input.name,
+          token: input.token,
+          ...(input.proxy
+            ? {
+                proxy: {
+                  ...input.proxy,
+                  address: input.proxy.address || input.proxy.host,
+                },
+              }
+            : {}),
+        },
+        {
+          headers: { apikey: input.apiKey },
+          timeout: 30000,
+        },
+      );
+      return response.data?.data ?? response.data?.instance ?? response.data;
+    } catch (error: any) {
+      this.logError('/instance/create', error);
+      throw error;
+    }
   }
 
   async sendRequest(
@@ -72,6 +115,23 @@ export class EvolutionGoHttpClient {
       return response.data?.data ?? response.data;
     } catch (error: any) {
       this.logError('/instance/status', error);
+      throw error;
+    }
+  }
+
+  async getInstanceQr(channel: Channel): Promise<{
+    qrCode?: string;
+    code?: string;
+  }> {
+    try {
+      const response = await this.createClient(channel).get('/instance/qr');
+      const data = response.data?.data ?? response.data;
+      return {
+        qrCode: data?.Qrcode || data?.qrcode || data?.qrCode,
+        code: data?.Code || data?.code,
+      };
+    } catch (error: any) {
+      this.logError('/instance/qr', error);
       throw error;
     }
   }

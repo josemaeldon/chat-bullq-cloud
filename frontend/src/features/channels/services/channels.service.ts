@@ -51,6 +51,12 @@ export interface TestConnectionResult {
   data?: any;
 }
 
+export interface EvolutionGoQrResult {
+  connected: boolean;
+  qrCode: string | null;
+  code: string | null;
+}
+
 export type SyncStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SyncMode = 'INITIAL' | 'MANUAL' | 'DELTA';
 
@@ -100,6 +106,13 @@ export const channelsService = {
 
   async testConnection(id: string): Promise<TestConnectionResult> {
     const { data } = await api.post<{ data: TestConnectionResult }>(`/channels/${id}/test`);
+    return data.data;
+  },
+
+  async getEvolutionGoQr(id: string): Promise<EvolutionGoQrResult> {
+    const { data } = await api.get<{ data: EvolutionGoQrResult }>(
+      `/channels/${id}/evolution-go/qr`,
+    );
     return data.data;
   },
 

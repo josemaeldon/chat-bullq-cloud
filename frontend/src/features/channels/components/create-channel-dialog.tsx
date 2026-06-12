@@ -59,8 +59,43 @@ const evolutionGoSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   baseUrl: z.string().url('Informe uma URL válida'),
   apiKey: z.string().min(1, 'API Key é obrigatória'),
-  instanceId: z.string().min(1, 'Instance ID é obrigatório'),
+  provisionMode: z.enum(['create', 'existing']),
+  instanceName: z.string().optional(),
+  instanceId: z.string().optional(),
   instanceToken: z.string().optional(),
+  proxyProtocol: z.string().optional(),
+  proxyHost: z.string().optional(),
+  proxyPort: z.string().optional(),
+  proxyUsername: z.string().optional(),
+  proxyPassword: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.provisionMode === 'create' && !data.instanceName?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['instanceName'],
+      message: 'Nome da instância é obrigatório',
+    });
+  }
+  if (data.provisionMode === 'existing' && !data.instanceId?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['instanceId'],
+      message: 'Instance ID é obrigatório',
+    });
+  }
+  const proxyValues = [
+    data.proxyHost,
+    data.proxyPort,
+    data.proxyUsername,
+    data.proxyPassword,
+  ];
+  if (proxyValues.some(Boolean) && proxyValues.some((value) => !value?.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['proxyHost'],
+      message: 'Preencha host, porta, usuário e senha do proxy',
+    });
+  }
 });
 
 const instagramSchema = z.object({
@@ -112,8 +147,15 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
       name: '',
       baseUrl: '',
       apiKey: '',
+      provisionMode: 'create',
+      instanceName: '',
       instanceId: '',
       instanceToken: '',
+      proxyProtocol: '',
+      proxyHost: '',
+      proxyPort: '',
+      proxyUsername: '',
+      proxyPassword: '',
     },
   });
 
@@ -123,6 +165,7 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
   });
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const evolutionProvisionMode = evolutionGoForm.watch('provisionMode');
 
   const handleTypeSelect = (type: ChannelType) => {
     setSelectedType(type);
@@ -169,8 +212,15 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
     submitChannel('WHATSAPP_EVOLUTION_GO', data.name, {
       baseUrl: data.baseUrl.replace(/\/+$/, ''),
       apiKey: data.apiKey,
-      instanceId: data.instanceId,
+      provisionMode: data.provisionMode,
+      instanceName: data.instanceName || undefined,
+      instanceId: data.instanceId || undefined,
       instanceToken: data.instanceToken || undefined,
+      proxyProtocol: data.proxyProtocol || undefined,
+      proxyHost: data.proxyHost || undefined,
+      proxyPort: data.proxyPort || undefined,
+      proxyUsername: data.proxyUsername || undefined,
+      proxyPassword: data.proxyPassword || undefined,
     });
 
   const onSubmitInstagram = (data: InstagramFormData) =>
@@ -261,11 +311,48 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
             <Field label="Nome do canal" placeholder="Ex: WhatsApp Evolution" error={evolutionGoForm.formState.errors.name?.message} {...evolutionGoForm.register('name')} />
             <Field label="URL da Evolution GO" placeholder="https://evolution.seudominio.com" error={evolutionGoForm.formState.errors.baseUrl?.message} {...evolutionGoForm.register('baseUrl')} />
             <Field label="API Key global" placeholder="GLOBAL_API_KEY da instalação" error={evolutionGoForm.formState.errors.apiKey?.message} {...evolutionGoForm.register('apiKey')} />
-            <Field label="Instance ID" placeholder="ID da instância na Evolution GO" error={evolutionGoForm.formState.errors.instanceId?.message} {...evolutionGoForm.register('instanceId')} />
-            <Field label="Token da instância" placeholder="Detectado automaticamente se ficar vazio" optional {...evolutionGoForm.register('instanceToken')} />
+            <div className="grid grid-cols-2 gap-2 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+              <ModeButton
+                active={evolutionProvisionMode === 'create'}
+                onClick={() => evolutionGoForm.setValue('provisionMode', 'create')}
+              >
+                Criar nova
+              </ModeButton>
+              <ModeButton
+                active={evolutionProvisionMode === 'existing'}
+                onClick={() => evolutionGoForm.setValue('provisionMode', 'existing')}
+              >
+                Usar existente
+              </ModeButton>
+            </div>
+            {evolutionProvisionMode === 'create' ? (
+              <>
+                <Field label="Nome da instância" placeholder="Ex: atendimento-principal" error={evolutionGoForm.formState.errors.instanceName?.message} {...evolutionGoForm.register('instanceName')} />
+                <Field label="Token da instância" placeholder="Gerado automaticamente se ficar vazio" optional {...evolutionGoForm.register('instanceToken')} />
+                <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                  <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Configurar proxy (opcional)
+                  </summary>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <Field label="Protocolo" placeholder="http" optional {...evolutionGoForm.register('proxyProtocol')} />
+                    <Field label="Host" placeholder="proxy.exemplo.com" error={evolutionGoForm.formState.errors.proxyHost?.message} optional {...evolutionGoForm.register('proxyHost')} />
+                    <Field label="Porta" placeholder="8080" optional {...evolutionGoForm.register('proxyPort')} />
+                    <Field label="Usuário" placeholder="usuario" optional {...evolutionGoForm.register('proxyUsername')} />
+                    <div className="col-span-2">
+                      <Field label="Senha" type="password" placeholder="Senha do proxy" optional {...evolutionGoForm.register('proxyPassword')} />
+                    </div>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <>
+                <Field label="Instance ID" placeholder="ID da instância na Evolution GO" error={evolutionGoForm.formState.errors.instanceId?.message} {...evolutionGoForm.register('instanceId')} />
+                <Field label="Token da instância" placeholder="Detectado automaticamente se ficar vazio" optional {...evolutionGoForm.register('instanceToken')} />
+              </>
+            )}
             <WebhookUrl url={`${apiBaseUrl}/webhooks/WHATSAPP_EVOLUTION_GO`} copied={copied} onCopy={() => handleCopyWebhook('WHATSAPP_EVOLUTION_GO')} />
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              O backend configura automaticamente os eventos MESSAGE, SEND_MESSAGE, READ_RECEIPT e CONNECTION.
+              A instância, as credenciais e os eventos do webhook são configurados automaticamente.
             </p>
             <FormFooter isLoading={isLoading} onBack={() => setStep('type')} />
           </form>
@@ -348,5 +435,29 @@ function FormFooter({ isLoading, onBack }: { isLoading: boolean; onBack: () => v
         Criar Canal
       </button>
     </div>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+        active
+          ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100'
+          : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
+      }`}
+    >
+      {children}
+    </button>
   );
 }

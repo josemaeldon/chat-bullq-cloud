@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ChannelType, ChannelSyncMode, ChannelSyncStatus, OrgRole } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { ChannelsRepository } from './channels.repository';
@@ -42,11 +43,16 @@ export class ChannelsService {
     dto: CreateChannelDto,
     creator?: { userOrganizationId: string; role: OrgRole },
   ) {
+    const providerConfig =
+      dto.type === ChannelType.WHATSAPP_EVOLUTION_GO
+        ? await this.prepareEvolutionGoConfig(dto.name, dto.config)
+        : dto.config;
+
     let channel = await this.repository.create({
       organizationId,
       type: dto.type,
       name: dto.name,
-      config: dto.config,
+      config: providerConfig,
       webhookSecret: dto.webhookSecret,
       ...(dto.visibility ? { visibility: dto.visibility } : {}),
     });
@@ -126,6 +132,69 @@ export class ChannelsService {
     }
 
     return channel;
+  }
+
+  private async prepareEvolutionGoConfig(
+    channelName: string,
+    rawConfig: Record<string, any>,
+  ): Promise<Record<string, any>> {
+    const config = { ...rawConfig };
+    if (config.provisionMode !== 'create') {
+      return config;
+    }
+    if (!config.baseUrl || !config.apiKey) {
+      throw new BadRequestException(
+        'Evolution GO exige URL da API e API Key global',
+      );
+    }
+
+    const instanceToken = String(config.instanceToken || randomUUID());
+    const proxy =
+      config.proxyHost &&
+      config.proxyPort &&
+      config.proxyUsername &&
+      config.proxyPassword
+        ? {
+            host: String(config.proxyHost),
+            address: String(config.proxyHost),
+            port: String(config.proxyPort),
+            username: String(config.proxyUsername),
+            password: String(config.proxyPassword),
+            ...(config.proxyProtocol
+              ? { protocol: String(config.proxyProtocol) }
+              : {}),
+          }
+        : undefined;
+
+    try {
+      const instance = await this.evolutionGoHttpClient.createInstance({
+        baseUrl: String(config.baseUrl),
+        apiKey: String(config.apiKey),
+        name: String(config.instanceName || channelName),
+        token: instanceToken,
+        proxy,
+      });
+      const instanceId = instance?.id || instance?.instanceId;
+      if (!instanceId) {
+        throw new Error('A Evolution GO não retornou o ID da nova instância');
+      }
+      return {
+        baseUrl: String(config.baseUrl).replace(/\/+$/, ''),
+        apiKey: String(config.apiKey),
+        instanceId: String(instanceId),
+        instanceToken: String(instance?.token || instanceToken),
+        instanceName: String(instance?.name || config.instanceName || channelName),
+        provisionedByChatBullq: true,
+        ...(proxy ? { proxy } : {}),
+      };
+    } catch (error: any) {
+      throw new BadRequestException(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message ||
+          'Não foi possível criar a instância na Evolution GO',
+      );
+    }
   }
 
   /**
@@ -456,5 +525,18 @@ export class ChannelsService {
         error: error.response?.data?.error?.message || error.message,
       };
     }
+  }
+
+  async getEvolutionGoQr(id: string, organizationId: string) {
+    const channel = await this.findOne(id, organizationId);
+    if (channel.type !== ChannelType.WHATSAPP_EVOLUTION_GO) {
+      throw new BadRequestException('Este canal não usa Evolution GO');
+    }
+    const status = await this.evolutionGoHttpClient.getInstanceStatus(channel);
+    if (status?.Connected === true && status?.LoggedIn === true) {
+      return { connected: true, qrCode: null, code: null };
+    }
+    const qr = await this.evolutionGoHttpClient.getInstanceQr(channel);
+    return { connected: false, ...qr };
   }
 }
