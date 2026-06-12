@@ -7,9 +7,16 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { Loader2, X, Copy, Check } from 'lucide-react';
 import { channelsService, type ChannelType } from '../services/channels.service';
-import { ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
+import { EvolutionGoIcon, ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
 
 const channelTypes: { value: ChannelType; label: string; icon: React.ElementType; color: string; description: string }[] = [
+  {
+    value: 'WHATSAPP_EVOLUTION_GO',
+    label: 'WhatsApp (Evolution GO)',
+    icon: EvolutionGoIcon,
+    color: 'bg-zinc-50 dark:bg-zinc-800',
+    description: 'Evolution GO — API em Go, webhook e múltiplas instâncias',
+  },
   {
     value: 'WHATSAPP_ZAPPFY',
     label: 'WhatsApp (Zappfy)',
@@ -48,6 +55,14 @@ const waOfficialSchema = z.object({
   webhookSecret: z.string().optional(),
 });
 
+const evolutionGoSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório'),
+  baseUrl: z.string().url('Informe uma URL válida'),
+  apiKey: z.string().min(1, 'API Key é obrigatória'),
+  instanceId: z.string().min(1, 'Instance ID é obrigatório'),
+  instanceToken: z.string().optional(),
+});
+
 const instagramSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   accessToken: z.string().min(1, 'Access Token é obrigatório'),
@@ -59,6 +74,7 @@ const instagramSchema = z.object({
 
 type ZappfyFormData = z.infer<typeof zappfySchema>;
 type WaOfficialFormData = z.infer<typeof waOfficialSchema>;
+type EvolutionGoFormData = z.infer<typeof evolutionGoSchema>;
 type InstagramFormData = z.infer<typeof instagramSchema>;
 
 const inputCls = 'flex h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100';
@@ -88,6 +104,17 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
   const waForm = useForm<WaOfficialFormData>({
     resolver: zodResolver(waOfficialSchema),
     defaultValues: { name: '', phoneNumberId: '', accessToken: '', appSecret: '', businessAccountId: '', webhookSecret: '' },
+  });
+
+  const evolutionGoForm = useForm<EvolutionGoFormData>({
+    resolver: zodResolver(evolutionGoSchema),
+    defaultValues: {
+      name: '',
+      baseUrl: '',
+      apiKey: '',
+      instanceId: '',
+      instanceToken: '',
+    },
   });
 
   const igForm = useForm<InstagramFormData>({
@@ -138,6 +165,14 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
       data.webhookSecret,
     );
 
+  const onSubmitEvolutionGo = (data: EvolutionGoFormData) =>
+    submitChannel('WHATSAPP_EVOLUTION_GO', data.name, {
+      baseUrl: data.baseUrl.replace(/\/+$/, ''),
+      apiKey: data.apiKey,
+      instanceId: data.instanceId,
+      instanceToken: data.instanceToken || undefined,
+    });
+
   const onSubmitInstagram = (data: InstagramFormData) =>
     submitChannel(
       'INSTAGRAM',
@@ -157,6 +192,7 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
     setSelectedType(null);
     zappfyForm.reset();
     waForm.reset();
+    evolutionGoForm.reset();
     igForm.reset();
     onClose();
   };
@@ -165,6 +201,7 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
 
   const titleMap: Record<string, string> = {
     WHATSAPP_ZAPPFY: 'Configurar Zappfy',
+    WHATSAPP_EVOLUTION_GO: 'Configurar Evolution GO',
     WHATSAPP_OFFICIAL: 'Configurar WhatsApp Official',
     INSTAGRAM: 'Configurar Instagram',
   };
@@ -217,6 +254,19 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
             <Field label="Business Account ID (WABA)" placeholder="Opcional — habilita auto-subscribe do webhook" optional {...waForm.register('businessAccountId')} />
             <Field label="Webhook Verify Token" placeholder="Token que você definiu no Meta" optional {...waForm.register('webhookSecret')} />
             <WebhookUrl url={`${apiBaseUrl}/webhooks/WHATSAPP_OFFICIAL`} copied={copied} onCopy={() => handleCopyWebhook('WHATSAPP_OFFICIAL')} />
+            <FormFooter isLoading={isLoading} onBack={() => setStep('type')} />
+          </form>
+        ) : selectedType === 'WHATSAPP_EVOLUTION_GO' ? (
+          <form onSubmit={evolutionGoForm.handleSubmit(onSubmitEvolutionGo)} className="mt-6 space-y-4">
+            <Field label="Nome do canal" placeholder="Ex: WhatsApp Evolution" error={evolutionGoForm.formState.errors.name?.message} {...evolutionGoForm.register('name')} />
+            <Field label="URL da Evolution GO" placeholder="https://evolution.seudominio.com" error={evolutionGoForm.formState.errors.baseUrl?.message} {...evolutionGoForm.register('baseUrl')} />
+            <Field label="API Key global" placeholder="GLOBAL_API_KEY da instalação" error={evolutionGoForm.formState.errors.apiKey?.message} {...evolutionGoForm.register('apiKey')} />
+            <Field label="Instance ID" placeholder="ID da instância na Evolution GO" error={evolutionGoForm.formState.errors.instanceId?.message} {...evolutionGoForm.register('instanceId')} />
+            <Field label="Token da instância" placeholder="Detectado automaticamente se ficar vazio" optional {...evolutionGoForm.register('instanceToken')} />
+            <WebhookUrl url={`${apiBaseUrl}/webhooks/WHATSAPP_EVOLUTION_GO`} copied={copied} onCopy={() => handleCopyWebhook('WHATSAPP_EVOLUTION_GO')} />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              O backend configura automaticamente os eventos MESSAGE, SEND_MESSAGE, READ_RECEIPT e CONNECTION.
+            </p>
             <FormFooter isLoading={isLoading} onBack={() => setStep('type')} />
           </form>
         ) : selectedType === 'INSTAGRAM' ? (

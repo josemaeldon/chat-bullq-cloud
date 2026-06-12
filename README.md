@@ -96,4 +96,4 @@ O `docker-compose.yml` da raiz sobe:
 ## Documentação por pasta
 
 - [frontend/README.md](./frontend/README.md)
-
+- [Canal Evolution GO](./backend/docs/evolution-go.md)

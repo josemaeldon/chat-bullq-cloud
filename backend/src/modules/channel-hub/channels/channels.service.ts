@@ -14,6 +14,7 @@ import { ChannelAdapterRegistry } from '../channel-adapter.registry';
 import { ZappfyHttpClient } from '../adapters/zappfy/zappfy.http-client';
 import { WhatsAppOfficialHttpClient } from '../adapters/whatsapp-official/whatsapp-official.http-client';
 import { InstagramHttpClient } from '../adapters/instagram/instagram.http-client';
+import { EvolutionGoHttpClient } from '../adapters/evolution-go/evolution-go.http-client';
 import { ChannelSyncOrchestrator } from '../sync/channel-sync.orchestrator';
 import {
   ChannelAccessService,
@@ -30,6 +31,7 @@ export class ChannelsService {
     private readonly zappfyHttpClient: ZappfyHttpClient,
     private readonly waOfficialHttpClient: WhatsAppOfficialHttpClient,
     private readonly instagramHttpClient: InstagramHttpClient,
+    private readonly evolutionGoHttpClient: EvolutionGoHttpClient,
     private readonly syncOrchestrator: ChannelSyncOrchestrator,
     private readonly prisma: PrismaService,
     private readonly channelAccess: ChannelAccessService,
@@ -72,12 +74,31 @@ export class ChannelsService {
     // Enrich config with provider-side identifiers that the webhook router
     // needs to match incoming events. Without these, the new routing (P0-1)
     // correctly drops webhooks as "unknown locator".
-    channel = (await this.enrichProviderIds(channel.id, dto.type)) ?? channel;
+    try {
+      channel = (await this.enrichProviderIds(channel.id, dto.type)) ?? channel;
+    } catch (error) {
+      // Creation has not started sync or received messages yet, so a hard
+      // rollback is safe and avoids leaving an invisible half-configured row.
+      await this.prisma.channel
+        .delete({ where: { id: channel.id } })
+        .catch((rollbackError) =>
+          this.logger.error(
+            `Failed to roll back channel ${channel.id}: ${rollbackError.message}`,
+          ),
+        );
+      throw error;
+    }
 
     // Zappfy needs its webhook configured on the provider side. Fire-and-forget.
     if (dto.type === ChannelType.WHATSAPP_ZAPPFY) {
       this.configureZappfyWebhook(channel.id).catch((err) =>
         this.logger.warn(`Zappfy webhook config failed: ${err.message}`),
+      );
+    }
+
+    if (dto.type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+      this.configureEvolutionGoWebhook(channel.id).catch((err) =>
+        this.logger.warn(`Evolution GO webhook config failed: ${err.message}`),
       );
     }
 
@@ -138,11 +159,42 @@ export class ChannelsService {
         );
       }
 
+      if (type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+        if (!config.baseUrl || !config.apiKey || !config.instanceId) {
+          throw new BadRequestException(
+            'Evolution GO exige URL da API, API Key global e Instance ID',
+          );
+        }
+        if (!config.instanceToken) {
+          const info = await this.evolutionGoHttpClient.getInstanceInfo(channel);
+          const instanceToken = info?.token || info?.Token;
+          if (!instanceToken) {
+            throw new BadRequestException(
+              'A Evolution GO não retornou o token da instância informada',
+            );
+          }
+          return this.repository.update(channelId, {
+            config: {
+              ...config,
+              instanceToken: String(instanceToken),
+              instanceName: info?.name || info?.Name || undefined,
+            },
+          });
+        }
+      }
+
       return channel;
     } catch (err: any) {
       this.logger.warn(
         `enrichProviderIds failed for channel ${channelId}: ${err.message}`,
       );
+      if (type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+        throw new BadRequestException(
+          err.response?.data?.message ||
+            err.message ||
+            'Não foi possível localizar a instância na Evolution GO',
+        );
+      }
       return null;
     }
   }
@@ -158,6 +210,19 @@ export class ChannelsService {
     const webhookUrl = `${appUrl}/api/v1/webhooks/WHATSAPP_ZAPPFY`;
     await this.zappfyHttpClient.configureWebhook(channel, webhookUrl);
     this.logger.log(`Zappfy webhook configured: ${webhookUrl}`);
+  }
+
+  private async configureEvolutionGoWebhook(channelId: string): Promise<void> {
+    const channel = await this.repository.findById(channelId);
+    if (!channel) return;
+    const appUrl = process.env.APP_URL;
+    if (!appUrl) {
+      this.logger.warn('APP_URL not set — skipping Evolution GO webhook setup');
+      return;
+    }
+    const webhookUrl = `${appUrl.replace(/\/+$/, '')}/api/v1/webhooks/WHATSAPP_EVOLUTION_GO`;
+    await this.evolutionGoHttpClient.configureWebhook(channel, webhookUrl);
+    this.logger.log(`Evolution GO webhook configured: ${webhookUrl}`);
   }
 
   private async subscribeWaOfficialApp(channelId: string): Promise<void> {
@@ -215,7 +280,21 @@ export class ChannelsService {
     if (Object.keys(rest).length === 0) {
       return this.repository.findById(id);
     }
-    return this.repository.update(id, rest);
+    let updated = await this.repository.update(id, rest);
+    if (updated.type === ChannelType.WHATSAPP_EVOLUTION_GO && rest.config) {
+      const config = updated.config as Record<string, any>;
+      const { instanceToken: _oldToken, ...configWithoutToken } = config;
+      updated = await this.repository.update(id, {
+        config: configWithoutToken,
+      });
+      updated =
+        (await this.enrichProviderIds(id, ChannelType.WHATSAPP_EVOLUTION_GO)) ??
+        updated;
+      this.configureEvolutionGoWebhook(id).catch((err) =>
+        this.logger.warn(`Evolution GO webhook refresh failed: ${err.message}`),
+      );
+    }
+    return updated;
   }
 
   /**
@@ -332,6 +411,25 @@ export class ChannelsService {
               qualityRating: info.quality_rating,
               verifiedName: info.verified_name,
             },
+          };
+        }
+
+        case ChannelType.WHATSAPP_EVOLUTION_GO: {
+          const status =
+            await this.evolutionGoHttpClient.getInstanceStatus(channel);
+          const connected =
+            status?.Connected === true && status?.LoggedIn === true;
+          return {
+            success: connected,
+            status: connected ? 'connected' : 'disconnected',
+            data: {
+              connected: status?.Connected ?? false,
+              loggedIn: status?.LoggedIn ?? false,
+              name: status?.Name,
+            },
+            ...(connected
+              ? {}
+              : { error: 'Instância encontrada, mas o WhatsApp não está conectado' }),
           };
         }
 

@@ -10,7 +10,7 @@ import {
  *
  * - WA Official: { phoneNumberId, businessAccountId? }
  * - Instagram:   { igBusinessId }
- * - Zappfy:      { instanceId?, token? }
+ * - Zappfy/GO:   { instanceId?, token? }
  */
 export interface ChannelLocator {
   phoneNumberId?: string;

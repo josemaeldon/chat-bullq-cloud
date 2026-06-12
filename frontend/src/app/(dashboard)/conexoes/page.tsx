@@ -4,17 +4,19 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Cable, Plus, CheckCircle2, XCircle, Settings as SettingsIcon } from 'lucide-react';
 import { channelsService } from '@/features/channels/services/channels.service';
-import { ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
+import { EvolutionGoIcon, ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
 import { useOrgId } from '@/hooks/use-org-query-key';
 
 const channelIcons: Record<string, React.ElementType> = {
   WHATSAPP_ZAPPFY: ZappfyIcon,
+  WHATSAPP_EVOLUTION_GO: EvolutionGoIcon,
   WHATSAPP_OFFICIAL: MetaIcon,
   INSTAGRAM: InstagramIcon,
 };
 
 const channelLabels: Record<string, string> = {
   WHATSAPP_ZAPPFY: 'WhatsApp',
+  WHATSAPP_EVOLUTION_GO: 'WhatsApp Evolution GO',
   WHATSAPP_OFFICIAL: 'WhatsApp Oficial',
   INSTAGRAM: 'Instagram',
 };

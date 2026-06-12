@@ -22,7 +22,7 @@ import { channelsService } from '@/features/channels/services/channels.service';
 import { tagsService } from '@/features/settings/services/tags.service';
 import { contactStatusesService } from '@/features/settings/services/contact-statuses.service';
 import { membersService } from '@/features/settings/services/members.service';
-import { ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
+import { EvolutionGoIcon, ZappfyIcon, MetaIcon, InstagramIcon } from '@/components/ui/icons';
 import { useOrgId } from '@/hooks/use-org-query-key';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInboxPreferences } from '../hooks/use-inbox-preferences';
@@ -30,6 +30,7 @@ import { useInboxFilterStore, UNASSIGNED } from '../stores/inbox-filter-store';
 
 const channelIcons: Record<string, React.ElementType> = {
   WHATSAPP_ZAPPFY: ZappfyIcon,
+  WHATSAPP_EVOLUTION_GO: EvolutionGoIcon,
   WHATSAPP_OFFICIAL: MetaIcon,
   INSTAGRAM: InstagramIcon,
 };

@@ -55,6 +55,22 @@ export function ZappfyIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function EvolutionGoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <circle cx="20" cy="20" r="19" fill="url(#evolution_go_grad)" />
+      <path d="M11 12.5h18v5H17v2.5h10v5H17v2.5h12v5H11v-20Z" fill="white" />
+      <path d="M26.5 17.5h4.5L27.5 22l3.5 4.5h-4.5L23 22l3.5-4.5Z" fill="#083B32" />
+      <defs>
+        <linearGradient id="evolution_go_grad" x1="6" y1="4" x2="35" y2="37" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#20D6A2" />
+          <stop offset="1" stopColor="#087F68" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 export function MetaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
