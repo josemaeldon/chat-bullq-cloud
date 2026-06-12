@@ -113,13 +113,13 @@ export class AuthService {
 
     return {
       user: this.sanitizeUser(result.user),
-      organizations: [{
-        id: result.organization.id,
-        name: result.organization.name,
-        slug: result.organization.slug,
-        role: 'OWNER',
-        accessibleChannelIds: 'ALL' as const,
-      }],
+      organizations: [
+        this.mapOrganizationInfo({
+          organization: result.organization,
+          role: 'OWNER',
+          channelAgents: [],
+        }),
+      ],
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
@@ -205,18 +205,13 @@ export class AuthService {
 
     return {
       user: this.sanitizeUser(result.user),
-      organizations: [{
-        id: result.organization.id,
-        name: result.organization.name,
-        slug: result.organization.slug,
-        role: invitation.role,
-        // New invited members start with no channel grants (deny-by-default).
-        // OWNER/ADMIN bypass; AGENT must be explicitly granted by an admin.
-        accessibleChannelIds:
-          invitation.role === 'OWNER' || invitation.role === 'ADMIN'
-            ? ('ALL' as const)
-            : ([] as string[]),
-      }],
+      organizations: [
+        this.mapOrganizationInfo({
+          organization: result.organization,
+          role: invitation.role,
+          channelAgents: [],
+        }),
+      ],
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
@@ -258,16 +253,7 @@ export class AuthService {
 
     return {
       user: this.sanitizeUser(user),
-      organizations: memberships.map((m) => ({
-        id: m.organization.id,
-        name: m.organization.name,
-        slug: m.organization.slug,
-        role: m.role,
-        accessibleChannelIds:
-          m.role === 'OWNER' || m.role === 'ADMIN'
-            ? ('ALL' as const)
-            : m.channelAgents.map((c) => c.channelId),
-      })),
+      organizations: memberships.map((m) => this.mapOrganizationInfo(m)),
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
@@ -314,17 +300,7 @@ export class AuthService {
 
     return {
       user: this.sanitizeUser(user),
-      organizations: memberships.map((m) => ({
-        id: m.organization.id,
-        name: m.organization.name,
-        slug: m.organization.slug,
-        role: m.role,
-        // 'ALL' for OWNER/ADMIN — they bypass the per-channel allowlist.
-        accessibleChannelIds:
-          m.role === 'OWNER' || m.role === 'ADMIN'
-            ? ('ALL' as const)
-            : m.channelAgents.map((c) => c.channelId),
-      })),
+      organizations: memberships.map((m) => this.mapOrganizationInfo(m)),
     };
   }
 
@@ -458,6 +434,33 @@ export class AuthService {
   private sanitizeUser(user: { password: string; [key: string]: unknown }) {
     const { password: _, ...rest } = user;
     return rest;
+  }
+
+  private mapOrganizationInfo(membership: {
+    organization: { id: string; name: string; slug: string; settings?: unknown };
+    role: string;
+    channelAgents?: Array<{ channelId: string }>;
+  }) {
+    const settings =
+      membership.organization.settings &&
+      typeof membership.organization.settings === 'object' &&
+      !Array.isArray(membership.organization.settings)
+        ? (membership.organization.settings as Record<string, unknown>)
+        : {};
+    return {
+      id: membership.organization.id,
+      name: membership.organization.name,
+      slug: membership.organization.slug,
+      browserTabTitle:
+        typeof settings.browserTabTitle === 'string'
+          ? settings.browserTabTitle
+          : null,
+      role: membership.role,
+      accessibleChannelIds:
+        membership.role === 'OWNER' || membership.role === 'ADMIN'
+          ? ('ALL' as const)
+          : (membership.channelAgents ?? []).map((c) => c.channelId),
+    };
   }
 
   private generateSlug(name: string): string {

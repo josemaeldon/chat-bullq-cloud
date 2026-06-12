@@ -17,17 +17,20 @@ export default function SettingsGeneralPage() {
 
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [browserTabTitle, setBrowserTabTitle] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!data) return;
     setName(data.name ?? '');
     setLogoUrl(data.logoUrl ?? '');
+    setBrowserTabTitle(data.browserTabTitle ?? '');
   }, [data]);
 
   const handleSave = async () => {
     const trimmedName = name.trim();
     const trimmedLogoUrl = logoUrl.trim();
+    const trimmedBrowserTabTitle = browserTabTitle.trim();
 
     if (!trimmedName) {
       toast.error('Informe o nome da organização');
@@ -39,11 +42,13 @@ export default function SettingsGeneralPage() {
       const updated = await organizationGeneralService.update({
         name: trimmedName,
         logoUrl: trimmedLogoUrl || null,
+        browserTabTitle: trimmedBrowserTabTitle || null,
       });
 
       updateActiveOrganization({
         name: updated.name,
         slug: updated.slug,
+        browserTabTitle: updated.browserTabTitle,
       });
       queryClient.invalidateQueries({ queryKey: ['organization-general'] });
       queryClient.invalidateQueries({ queryKey: ['ai-settings'] });
@@ -109,6 +114,25 @@ export default function SettingsGeneralPage() {
 
             <div>
               <label
+                htmlFor="organization-browser-title"
+                className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
+              >
+                Título da aba do navegador
+              </label>
+              <input
+                id="organization-browser-title"
+                value={browserTabTitle}
+                onChange={(e) => setBrowserTabTitle(e.target.value)}
+                placeholder="Ex: Atendimento | Minha Empresa"
+                className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+              <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                Se ficar vazio, a aba usa o nome da organização como padrão.
+              </p>
+            </div>
+
+            <div>
+              <label
                 htmlFor="organization-logo"
                 className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
               >
@@ -152,7 +176,7 @@ export default function SettingsGeneralPage() {
                     {name.trim() || 'Nome da organização'}
                   </p>
                   <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-                    {data?.slug || 'slug-da-organizacao'}
+                    {browserTabTitle.trim() || data?.slug || 'slug-da-organizacao'}
                   </p>
                 </div>
               </div>

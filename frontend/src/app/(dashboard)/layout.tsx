@@ -16,7 +16,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, setAuth, activeOrgId, setActiveOrg } = useAuthStore();
+  const { user, organizations, activeOrgId, setAuth, setActiveOrg } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
 
   usePermissionsSync();
@@ -50,6 +50,15 @@ export default function DashboardLayout({
         router.replace('/login');
       });
   }, [router, user, setAuth, setActiveOrg]);
+
+  useEffect(() => {
+    const activeOrg = organizations.find((org) => org.id === activeOrgId);
+    const title =
+      activeOrg?.browserTabTitle?.trim() ||
+      activeOrg?.name?.trim() ||
+      'Chat BullQ';
+    document.title = title;
+  }, [organizations, activeOrgId]);
 
   if (isLoading) {
     return (

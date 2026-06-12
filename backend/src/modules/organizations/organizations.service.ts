@@ -32,6 +32,7 @@ export class OrganizationsService {
       watchdogBusinessHours,
       watchdogConfig,
       allowedUrlDomains,
+      browserTabTitle,
       openaiApiKey,
       clearOpenAiApiKey,
       ...rest
@@ -40,6 +41,14 @@ export class OrganizationsService {
       org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
         ? { ...(org.settings as Record<string, unknown>) }
         : {};
+    if (browserTabTitle === null || browserTabTitle === '') {
+      delete currentSettings.browserTabTitle;
+    } else if (
+      typeof browserTabTitle === 'string' &&
+      browserTabTitle.trim().length > 0
+    ) {
+      currentSettings.browserTabTitle = browserTabTitle.trim();
+    }
     if (clearOpenAiApiKey) {
       delete currentSettings.openaiApiKey;
     } else if (typeof openaiApiKey === 'string' && openaiApiKey.trim().length > 0) {
@@ -79,6 +88,10 @@ export class OrganizationsService {
     const { settings: _settings, ...rest } = org;
     return {
       ...rest,
+      browserTabTitle:
+        typeof settings.browserTabTitle === 'string'
+          ? settings.browserTabTitle
+          : null,
       openaiApiKeyConfigured: openaiApiKey.length > 0,
       openaiApiKeyLast4:
         openaiApiKey.length >= 4 ? openaiApiKey.slice(-4) : null,

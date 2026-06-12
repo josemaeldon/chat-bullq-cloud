@@ -5,6 +5,7 @@ export interface OrganizationGeneralSettings {
   name: string;
   slug: string;
   logoUrl: string | null;
+  browserTabTitle: string | null;
   plan: string;
   createdAt: string;
   updatedAt: string;
@@ -13,6 +14,7 @@ export interface OrganizationGeneralSettings {
 export interface UpdateOrganizationGeneralInput {
   name?: string;
   logoUrl?: string | null;
+  browserTabTitle?: string | null;
 }
 
 export const organizationGeneralService = {

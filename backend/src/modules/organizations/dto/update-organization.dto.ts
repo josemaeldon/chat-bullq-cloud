@@ -23,6 +23,17 @@ export class UpdateOrganizationDto {
   @IsString()
   logoUrl?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Custom title shown in the browser tab for the workspace. Null/empty clears and falls back to the organization name.',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(120)
+  browserTabTitle?: string | null;
+
   // ─── AI settings ────────────────────────────────────────────────
 
   @ApiPropertyOptional({ description: 'Master kill switch for AI agents' })

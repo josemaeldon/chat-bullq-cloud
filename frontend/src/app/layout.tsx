@@ -6,7 +6,7 @@ import { Providers } from '@/components/providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Chat | Frider Andrade',
+  title: 'Chat BullQ',
   description: 'Omnichannel customer service platform',
 };
 

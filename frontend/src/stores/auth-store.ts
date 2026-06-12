@@ -11,6 +11,7 @@ interface OrgInfo {
   id: string;
   name: string;
   slug: string;
+  browserTabTitle: string | null;
   role: string;
   // 'ALL' for OWNER/ADMIN. Array of channel IDs for AGENT (deny-by-default).
   accessibleChannelIds: 'ALL' | string[];
@@ -22,7 +23,9 @@ interface AuthState {
   activeOrgId: string | null;
   setAuth: (user: AuthUser, orgs: OrgInfo[]) => void;
   setActiveOrg: (orgId: string) => void;
-  updateActiveOrganization: (patch: Partial<Pick<OrgInfo, 'name' | 'slug'>>) => void;
+  updateActiveOrganization: (
+    patch: Partial<Pick<OrgInfo, 'name' | 'slug' | 'browserTabTitle'>>,
+  ) => void;
   applyChannelPermissionUpdate: (channelId: string, granted: boolean) => void;
   logout: () => void;
 }

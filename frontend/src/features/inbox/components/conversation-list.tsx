@@ -288,6 +288,7 @@ export function ConversationList({ activeId, onSelect, viewId }: ConversationLis
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { organizations, activeOrgId } = useAuthStore();
 
   const { data: tags = [] } = useQuery({
     queryKey: ['tags', orgId],
@@ -301,14 +302,19 @@ export function ConversationList({ activeId, onSelect, viewId }: ConversationLis
     staleTime: 15_000,
   });
 
-  // Título da aba com a contagem de pendentes, igual LíderHub: "(12) Chat | Frider Andrade"
+  // Título da aba com a contagem de pendentes, usando o nome configurado da org.
   useEffect(() => {
+    const activeOrg = organizations.find((org) => org.id === activeOrgId);
+    const baseTitle =
+      activeOrg?.browserTabTitle?.trim() ||
+      activeOrg?.name?.trim() ||
+      'Chat BullQ';
     const pending = statusCounts?.['PENDING'] ?? 0;
-    document.title = pending > 0 ? `(${pending}) Chat | Frider Andrade` : 'Chat | Frider Andrade';
+    document.title = pending > 0 ? `(${pending}) ${baseTitle}` : baseTitle;
     return () => {
-      document.title = 'Chat | Frider Andrade';
+      document.title = baseTitle;
     };
-  }, [statusCounts]);
+  }, [statusCounts, organizations, activeOrgId]);
 
   // Drop selected tag ids that no longer exist (tag deleted in another tab).
   // Avoid sending stale ids to the backend — they'd just match nothing.
