@@ -61,6 +61,25 @@ export const authService = {
     return data.data;
   },
 
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const { data } = await api.post<{ data: { message: string } }>(
+      '/auth/forgot-password',
+      { email },
+    );
+    return data.data;
+  },
+
+  async resetPassword(
+    token: string,
+    password: string,
+  ): Promise<{ message: string }> {
+    const { data } = await api.post<{ data: { message: string } }>(
+      '/auth/reset-password',
+      { token, password },
+    );
+    return data.data;
+  },
+
   async validateInvitation(token: string): Promise<InvitationInfo> {
     const { data } = await api.get<{ data: InvitationInfo }>(`/organizations/invitations/validate?token=${token}`);
     return data.data;

@@ -102,6 +102,14 @@ services:
       # Opcional, mas necessario para recursos de IA e embeddings.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
 
+      # Recuperacao de senha por e-mail. Configure todos em producao.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+
       # Opcionais: notificacoes push.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

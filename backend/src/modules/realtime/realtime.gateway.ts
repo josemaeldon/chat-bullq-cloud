@@ -51,6 +51,18 @@ export class RealtimeGateway
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
+      const authenticatedUser = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { isActive: true, tokenVersion: true },
+      });
+      if (
+        !authenticatedUser?.isActive ||
+        (payload.tv ?? 0) !== authenticatedUser.tokenVersion
+      ) {
+        client.disconnect();
+        return;
+      }
+
       client.data.userId = payload.sub;
       client.data.email = payload.email;
       client.join(`user:${payload.sub}`);

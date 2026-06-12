@@ -9,9 +9,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { SignOptions } from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasswordResetMailerService } from './password-reset-mailer.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -23,6 +25,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly resetMailer: PasswordResetMailerService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -101,7 +104,11 @@ export class AuthService {
       return { user, organization };
     });
 
-    const tokens = await this.generateTokens(result.user.id, result.user.email);
+    const tokens = await this.generateTokens(
+      result.user.id,
+      result.user.email,
+      result.user.tokenVersion,
+    );
     this.logger.log(`User registered (new workspace): ${result.user.email}`);
 
     return {
@@ -189,7 +196,11 @@ export class AuthService {
       return { user, organization: invitation.organization };
     });
 
-    const tokens = await this.generateTokens(result.user.id, result.user.email);
+    const tokens = await this.generateTokens(
+      result.user.id,
+      result.user.email,
+      result.user.tokenVersion,
+    );
     this.logger.log(`User registered via invitation: ${result.user.email} -> org ${result.organization.name}`);
 
     return {
@@ -237,7 +248,11 @@ export class AuthService {
       },
     });
 
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.tokenVersion,
+    );
 
     this.logger.log(`User logged in: ${user.email}`);
 
@@ -260,7 +275,7 @@ export class AuthService {
 
   async refresh(refreshToken: string) {
     try {
-      const payload = this.jwt.verify<{ sub: string }>(refreshToken, {
+      const payload = this.jwt.verify<{ sub: string; tv?: number }>(refreshToken, {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       });
 
@@ -268,11 +283,15 @@ export class AuthService {
         where: { id: payload.sub },
       });
 
-      if (!user || !user.isActive) {
+      if (
+        !user ||
+        !user.isActive ||
+        (payload.tv ?? 0) !== user.tokenVersion
+      ) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      return this.generateTokens(user.id, user.email);
+      return this.generateTokens(user.id, user.email, user.tokenVersion);
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -309,8 +328,118 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(userId: string, email: string) {
-    const payload = { sub: userId, email };
+  async requestPasswordReset(email: string) {
+    const genericResponse = {
+      message:
+        'Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação.',
+    };
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+        deletedAt: null,
+      },
+    });
+    if (!user || !user.isActive) return genericResponse;
+
+    const latest = await this.prisma.passwordResetToken.findFirst({
+      where: { userId: user.id, usedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (
+      latest &&
+      latest.createdAt.getTime() > Date.now() - 60_000
+    ) {
+      return genericResponse;
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = this.hashResetToken(rawToken);
+    const resetRecord = await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: user.id, usedAt: null },
+      });
+      return tx.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
+    });
+
+    const publicUrl = (
+      this.config.get<string>('APP_URL') || 'http://localhost:3000'
+    ).replace(/\/+$/, '');
+    const resetUrl = `${publicUrl}/reset-password?token=${rawToken}`;
+
+    try {
+      await this.resetMailer.sendResetEmail({
+        email: user.email,
+        name: user.name,
+        resetUrl,
+      });
+    } catch (error: any) {
+      await this.prisma.passwordResetToken
+        .delete({ where: { id: resetRecord.id } })
+        .catch(() => undefined);
+      this.logger.error(
+        `Password reset email failed for ${user.id}: ${error.message}`,
+      );
+    }
+
+    return genericResponse;
+  }
+
+  async resetPassword(rawToken: string, password: string) {
+    const tokenHash = this.hashResetToken(rawToken);
+    const token = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+    if (!token || token.usedAt || token.expiresAt <= new Date()) {
+      throw new BadRequestException('Link inválido ou expirado');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: {
+          id: token.id,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException('Link inválido ou expirado');
+      }
+      await tx.user.update({
+        where: { id: token.userId },
+        data: {
+          password: hashedPassword,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      await tx.passwordResetToken.deleteMany({
+        where: {
+          userId: token.userId,
+          id: { not: token.id },
+        },
+      });
+    });
+    return { message: 'Senha redefinida com sucesso' };
+  }
+
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async generateTokens(
+    userId: string,
+    email: string,
+    tokenVersion: number,
+  ) {
+    const payload = { sub: userId, email, tv: tokenVersion };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {

@@ -113,6 +113,20 @@ OPENAI_API_KEY=sk-...
 As variáveis `VAPID_*` habilitam notificações web push. Podem ficar vazias
 durante a primeira instalação.
 
+Para habilitar “Esqueci minha senha”, configure um servidor SMTP:
+
+```dotenv
+SMTP_HOST=smtp.seuprovedor.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=usuario-smtp
+SMTP_PASSWORD=senha-smtp
+SMTP_FROM=Chat BullQ <nao-responda@seudominio.com>
+```
+
+Use `SMTP_SECURE=true` normalmente apenas na porta `465`. Na porta `587`,
+use `false`, pois a conexão é elevada para TLS por STARTTLS.
+
 ### 7. Validar a stack
 
 ```bash
@@ -171,6 +185,7 @@ workspace recebe o papel `OWNER` da organização.
 | `MINIO_ROOT_PASSWORD` | Sim | Proteção do armazenamento MinIO. |
 | `PUBLIC_URL` | Em produção | Único domínio do painel, API, uploads e webhooks. |
 | `OPENAI_API_KEY` | Para IA | Embeddings e recursos baseados em OpenAI. |
+| `SMTP_*` | Para recuperação de senha | Envio do link de redefinição. |
 | `VAPID_*` | Para push | Notificações do navegador. |
 | Portas públicas | Conforme ambiente | Evitar conflitos e exposição desnecessária. |
 
@@ -207,6 +222,19 @@ Depois que a plataforma estiver pública:
 5. Clique em `Conectar WhatsApp` e leia o QR Code.
 
 Consulte [a documentação do canal](./backend/docs/evolution-go.md).
+
+## Recuperação de senha
+
+O link `Esqueci minha senha` fica na tela de login. O fluxo:
+
+1. Recebe o e-mail sem revelar se ele existe no sistema.
+2. Gera um token aleatório e salva somente seu hash.
+3. Envia um link no único domínio público da plataforma.
+4. Expira o link em 1 hora e permite apenas um uso.
+5. Invalida sessões anteriores quando a senha é alterada.
+
+Em desenvolvimento, se SMTP não estiver configurado, o backend registra a URL
+de recuperação nos logs. Em produção, configure SMTP obrigatoriamente.
 
 ## Atualização
 

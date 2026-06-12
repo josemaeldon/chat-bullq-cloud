@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { ApiKeyStrategy } from './api-key.strategy';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { PasswordResetMailerService } from './password-reset-mailer.service';
 
 @Module({
   imports: [
@@ -24,7 +25,12 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
     ApiKeysModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, ApiKeyStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    ApiKeyStrategy,
+    PasswordResetMailerService,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}
