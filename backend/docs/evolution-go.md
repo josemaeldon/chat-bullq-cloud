@@ -11,7 +11,7 @@ receber e enviar mensagens do WhatsApp.
 
 Para receber mídias, configure a Evolution GO com uma destas opções:
 
-- `WEBHOOKFILES=true`, para incluir o conteúdo em base64 no webhook.
+- `WEBHOOK_FILES=true`, para incluir o conteúdo em base64 no webhook.
 - MinIO habilitado na Evolution GO, para receber `mediaUrl`.
 
 Sem uma dessas opções, textos e status funcionam, mas a URL criptografada

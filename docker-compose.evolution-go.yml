@@ -1,0 +1,58 @@
+# Evolution GO para testes locais.
+#
+# Use junto com docker-compose.yml e docker-compose.build.yml. Este arquivo:
+# - adiciona uma Evolution GO e um PostgreSQL exclusivos;
+# - limita a API da Evolution GO ao localhost;
+# - faz o webhook retornar ao frontend pela rede Docker.
+
+services:
+  evolution-go-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution_go
+      POSTGRES_PASSWORD: ${EVOLUTION_GO_DB_PASSWORD:-evolution_go_local}
+      POSTGRES_DB: postgres
+    expose:
+      - '5432'
+    volumes:
+      - evolution_go_postgres_data:/var/lib/postgresql/data
+      - ./scripts/evolution-go-init-db.sh:/docker-entrypoint-initdb.d/10-create-databases.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U evolution_go -d evogo_auth']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  evolution-go:
+    image: evoapicloud/evolution-go:${EVOLUTION_GO_VERSION:-0.7.1}
+    restart: unless-stopped
+    depends_on:
+      evolution-go-postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      CLIENT_NAME: chat-bullq-local
+      GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY:-evolution-go-local-key}
+      POSTGRES_AUTH_DB: postgresql://evolution_go:${EVOLUTION_GO_DB_PASSWORD:-evolution_go_local}@evolution-go-postgres:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://evolution_go:${EVOLUTION_GO_DB_PASSWORD:-evolution_go_local}@evolution-go-postgres:5432/evogo_users?sslmode=disable
+      DATABASE_SAVE_MESSAGES: 'true'
+      WEBHOOK_FILES: 'true'
+      CONNECT_ON_STARTUP: 'true'
+      MINIO_ENABLED: 'false'
+      WADEBUG: INFO
+      LOGTYPE: console
+      TZ: ${TZ:-America/Belem}
+    ports:
+      - '127.0.0.1:${EVOLUTION_GO_PORT:-8080}:8080'
+    volumes:
+      - evolution_go_instances:/app/instances
+
+  backend:
+    environment:
+      # A Evolution GO local alcanca o webhook sem tunel pela rede Docker.
+      APP_URL: http://frontend:3000
+
+volumes:
+  evolution_go_postgres_data:
+  evolution_go_instances:

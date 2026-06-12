@@ -328,6 +328,10 @@ Depois que a plataforma estiver pública:
 
 Consulte [a documentação do canal](./backend/docs/evolution-go.md).
 
+Para instalar a Evolution GO junto com um ambiente local isolado, sem criar
+`.env` nem reutilizar bancos existentes, siga o
+[guia de teste local](./TESTE_LOCAL.md).
+
 ## Recuperação de senha
 
 O link `Esqueci minha senha` fica na tela de login. O fluxo:
