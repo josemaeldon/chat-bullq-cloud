@@ -33,6 +33,70 @@ interface FlowEditorProps {
   flow: ChatbotFlow;
 }
 
+function createStyledEdge(input: Partial<Edge> & Pick<Edge, 'id' | 'source' | 'target'>): Edge {
+  return {
+    type: 'smoothstep',
+    animated: true,
+    style: {
+      strokeWidth: 2,
+      stroke: '#b8bcc8',
+      strokeDasharray: '8 8',
+      strokeLinecap: 'round',
+    },
+    ...input,
+  };
+}
+
+function getNodeOutputCount(node: Node): number {
+  if (node.type === 'TRANSFER' || node.type === 'END_FLOW') return 0;
+  if (node.type === 'CONDITION') return 2;
+  if (node.type === 'MENU') {
+    const options = ((node.data as Record<string, unknown> | undefined)?.options as unknown[]) || [];
+    return Math.max(options.length, 1);
+  }
+  return 1;
+}
+
+function canAcceptMoreOutgoingEdges(node: Node, edges: Edge[]): boolean {
+  const maxOutputs = getNodeOutputCount(node);
+  if (maxOutputs === 0) return false;
+  return edges.filter((edge) => edge.source === node.id).length < maxOutputs;
+}
+
+function getNextSourceHandle(node: Node, edges: Edge[]): string | undefined {
+  const maxOutputs = getNodeOutputCount(node);
+  if (maxOutputs <= 1) return 'output-0';
+
+  const usedHandles = new Set(
+    edges
+      .filter((edge) => edge.source === node.id)
+      .map((edge) => edge.sourceHandle)
+      .filter((handle): handle is string => Boolean(handle)),
+  );
+
+  for (let i = 0; i < maxOutputs; i++) {
+    const handle = `output-${i}`;
+    if (!usedHandles.has(handle)) return handle;
+  }
+
+  return undefined;
+}
+
+function pickAutoConnectSource(nodes: Node[], edges: Edge[], selectedNodeId?: string | null): Node | null {
+  const selected = selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) : null;
+  if (selected && canAcceptMoreOutgoingEdges(selected, edges)) {
+    return selected;
+  }
+
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (canAcceptMoreOutgoingEdges(nodes[i], edges)) {
+      return nodes[i];
+    }
+  }
+
+  return null;
+}
+
 function flowNodesToReactFlow(nodes: ChatbotNode[]): { nodes: Node[]; edges: Edge[] } {
   const rfNodes: Node[] = nodes.map((n) => ({
     id: n.id,
@@ -45,15 +109,13 @@ function flowNodesToReactFlow(nodes: ChatbotNode[]): { nodes: Node[]; edges: Edg
   for (const n of nodes) {
     for (let i = 0; i < n.edges.length; i++) {
       const e = n.edges[i];
-      rfEdges.push({
+      rfEdges.push(createStyledEdge({
         id: `${n.id}-${e.targetNodeId}-${i}`,
         source: n.id,
         target: e.targetNodeId,
         sourceHandle: n.type === 'MENU' || n.type === 'CONDITION' ? `output-${i}` : 'output-0',
         label: e.condition || undefined,
-        animated: true,
-        style: { strokeWidth: 2 },
-      });
+      }));
     }
   }
 
@@ -90,7 +152,19 @@ export function FlowEditor({ flow }: FlowEditorProps) {
   const [showSimulator, setShowSimulator] = useState(false);
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true, style: { strokeWidth: 2 } }, eds)),
+    (connection: Connection) =>
+      setEdges((eds) =>
+        addEdge(
+          createStyledEdge({
+            id: `${connection.source}-${connection.target}-${connection.sourceHandle || 'output-0'}`,
+            source: connection.source || '',
+            target: connection.target || '',
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
+          }),
+          eds,
+        ),
+      ),
     [setEdges],
   );
 
@@ -115,7 +189,26 @@ export function FlowEditor({ flow }: FlowEditorProps) {
       data: defaultData,
     };
     setNodes((nds) => [...nds, newNode]);
-  }, [setNodes]);
+    setEdges((eds) => {
+      const currentNodes = [...nodes, newNode];
+      const sourceNode = pickAutoConnectSource(currentNodes.filter((node) => node.id !== newNode.id), eds, selectedNode?.id);
+      if (!sourceNode) return eds;
+
+      const sourceHandle = getNextSourceHandle(sourceNode, eds);
+      if (!sourceHandle && getNodeOutputCount(sourceNode) > 1) return eds;
+
+      return addEdge(
+        createStyledEdge({
+          id: `${sourceNode.id}-${newNode.id}-${sourceHandle || 'output-0'}`,
+          source: sourceNode.id,
+          target: newNode.id,
+          sourceHandle,
+        }),
+        eds,
+      );
+    });
+    setSelectedNode(newNode);
+  }, [nodes, selectedNode, setEdges, setNodes]);
 
   const handleUpdateNodeData = useCallback((id: string, data: Record<string, any>) => {
     setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data } : n)));
