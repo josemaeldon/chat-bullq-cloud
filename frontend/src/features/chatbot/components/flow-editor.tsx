@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import {
   ReactFlow,
   Background,
@@ -22,7 +22,12 @@ import { nodeTypes } from './nodes/custom-nodes';
 import { NodeToolbar } from './node-toolbar';
 import { NodePropertiesPanel } from './node-properties-panel';
 import { ChatSimulator } from './chat-simulator';
-import { chatbotService, type ChatbotFlow, type ChatbotNode } from '../services/chatbot.service';
+import {
+  chatbotService,
+  type ChatbotFlow,
+  type ChatbotNode,
+  type SaveChatbotNodeInput,
+} from '../services/chatbot.service';
 
 interface FlowEditorProps {
   flow: ChatbotFlow;
@@ -55,7 +60,7 @@ function flowNodesToReactFlow(nodes: ChatbotNode[]): { nodes: Node[]; edges: Edg
   return { nodes: rfNodes, edges: rfEdges };
 }
 
-function reactFlowToApiNodes(nodes: Node[], edges: Edge[]): Omit<ChatbotNode, 'id' | 'flowId'>[] {
+function reactFlowToApiNodes(nodes: Node[], edges: Edge[]): SaveChatbotNodeInput[] {
   return nodes.map((n) => {
     const outEdges = edges
       .filter((e) => e.source === n.id)
@@ -65,6 +70,7 @@ function reactFlowToApiNodes(nodes: Node[], edges: Edge[]): Omit<ChatbotNode, 'i
       }));
 
     return {
+      id: n.id,
       type: n.type || 'MESSAGE',
       name: null,
       positionX: n.position.x,
@@ -82,7 +88,6 @@ export function FlowEditor({ flow }: FlowEditorProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
-  const idCounter = useRef(100);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true, style: { strokeWidth: 2 } }, eds)),
@@ -96,7 +101,6 @@ export function FlowEditor({ flow }: FlowEditorProps) {
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
 
   const handleAddNode = useCallback((type: string) => {
-    idCounter.current++;
     const defaultData: Record<string, any> = {};
     if (type === 'MESSAGE') defaultData.message = '';
     if (type === 'MENU') { defaultData.title = ''; defaultData.options = [{ label: 'Opção 1', value: 'opt_1' }]; }
@@ -105,7 +109,7 @@ export function FlowEditor({ flow }: FlowEditorProps) {
     if (type === 'TRANSFER') defaultData.message = 'Transferindo para um atendente...';
 
     const newNode: Node = {
-      id: `new_${idCounter.current}`,
+      id: crypto.randomUUID(),
       type,
       position: { x: 250 + Math.random() * 100, y: 200 + Math.random() * 100 },
       data: defaultData,

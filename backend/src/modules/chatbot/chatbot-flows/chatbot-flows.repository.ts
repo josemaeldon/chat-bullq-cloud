@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ChatbotFlowsRepository {
@@ -45,15 +46,41 @@ export class ChatbotFlowsRepository {
 
   async replaceNodes(
     flowId: string,
-    nodes: { type: string; name?: string; positionX: number; positionY: number; data: any; edges: any }[],
+    nodes: {
+      id?: string;
+      type: string;
+      name?: string;
+      positionX: number;
+      positionY: number;
+      data: any;
+      edges: Array<{ targetNodeId: string; condition?: string }>;
+    }[],
   ) {
     await this.prisma.chatbotNode.deleteMany({ where: { flowId } });
     if (nodes.length === 0) return [];
 
+    const idMap = new Map<string, string>();
+    for (const node of nodes) {
+      const stableId = node.id || randomUUID();
+      if (node.id) idMap.set(node.id, stableId);
+    }
+
     return this.prisma.$transaction(
       nodes.map((n) =>
         this.prisma.chatbotNode.create({
-          data: { flowId, type: n.type as any, name: n.name, positionX: n.positionX, positionY: n.positionY, data: n.data, edges: n.edges },
+          data: {
+            id: n.id || randomUUID(),
+            flowId,
+            type: n.type as any,
+            name: n.name,
+            positionX: n.positionX,
+            positionY: n.positionY,
+            data: n.data,
+            edges: n.edges.map((edge) => ({
+              ...edge,
+              targetNodeId: idMap.get(edge.targetNodeId) || edge.targetNodeId,
+            })),
+          },
         }),
       ),
     );

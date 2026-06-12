@@ -26,6 +26,16 @@ export interface ChatbotNode {
   edges: { targetNodeId: string; condition?: string }[];
 }
 
+export interface SaveChatbotNodeInput {
+  id?: string;
+  type: string;
+  name?: string | null;
+  positionX: number;
+  positionY: number;
+  data: Record<string, any>;
+  edges: { targetNodeId: string; condition?: string }[];
+}
+
 export const chatbotService = {
   async list(): Promise<ChatbotFlow[]> {
     const { data } = await api.get('/chatbot-flows');
@@ -51,7 +61,7 @@ export const chatbotService = {
     await api.delete(`/chatbot-flows/${id}`);
   },
 
-  async saveNodes(id: string, nodes: Omit<ChatbotNode, 'id' | 'flowId'>[]): Promise<ChatbotNode[]> {
+  async saveNodes(id: string, nodes: SaveChatbotNodeInput[]): Promise<ChatbotNode[]> {
     const { data } = await api.post(`/chatbot-flows/${id}/nodes`, { nodes });
     return data.data;
   },

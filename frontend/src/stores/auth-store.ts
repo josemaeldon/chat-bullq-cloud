@@ -22,6 +22,7 @@ interface AuthState {
   activeOrgId: string | null;
   setAuth: (user: AuthUser, orgs: OrgInfo[]) => void;
   setActiveOrg: (orgId: string) => void;
+  updateActiveOrganization: (patch: Partial<Pick<OrgInfo, 'name' | 'slug'>>) => void;
   applyChannelPermissionUpdate: (channelId: string, granted: boolean) => void;
   logout: () => void;
 }
@@ -43,6 +44,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   setActiveOrg: (orgId) => {
     localStorage.setItem('active_org_id', orgId);
     set({ activeOrgId: orgId });
+  },
+
+  updateActiveOrganization: (patch) => {
+    set((state) => ({
+      organizations: state.organizations.map((org) =>
+        org.id === state.activeOrgId ? { ...org, ...patch } : org,
+      ),
+    }));
   },
 
   applyChannelPermissionUpdate: (channelId, granted) => {

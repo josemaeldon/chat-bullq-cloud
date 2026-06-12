@@ -20,7 +20,7 @@ Sem uma dessas opções, textos e status funcionam, mas a URL criptografada
 original do WhatsApp não pode ser reproduzida diretamente pelo navegador.
 
 Para testes locais, consulte
-[TESTE_LOCAL.md](../../../TESTE_LOCAL.md). O ambiente local usa a rede Docker
+[TESTE_LOCAL.md](../../TESTE_LOCAL.md). O ambiente local usa a rede Docker
 para os webhooks e, por isso, não precisa de túnel público.
 
 ## Ativação
