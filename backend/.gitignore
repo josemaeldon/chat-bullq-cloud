@@ -2,10 +2,7 @@
 node_modules/
 
 # Build
-.next/
-out/
 dist/
-uploads/
 
 # Environment
 .env
@@ -23,8 +20,9 @@ uploads/
 .DS_Store
 Thumbs.db
 
-# TypeScript
-*.tsbuildinfo
+# Prisma
+prisma/*.db
+prisma/*.db-journal
 
 # Logs
 *.log
@@ -38,3 +36,6 @@ coverage/
 # Temp
 tmp/
 temp/
+
+# Local file storage
+uploads/
