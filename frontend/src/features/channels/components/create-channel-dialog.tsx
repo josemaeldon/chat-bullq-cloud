@@ -164,7 +164,11 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
     defaultValues: { name: '', accessToken: '', appSecret: '', igBusinessId: '', igAppId: '', webhookSecret: '' },
   });
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+  const apiBaseUrl =
+    configuredApiUrl.startsWith('/') && typeof window !== 'undefined'
+      ? `${window.location.origin}${configuredApiUrl}`
+      : configuredApiUrl;
   const evolutionProvisionMode = evolutionGoForm.watch('provisionMode');
 
   const handleTypeSelect = (type: ChannelType) => {

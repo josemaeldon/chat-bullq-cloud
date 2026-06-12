@@ -8,10 +8,14 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://api.seudominio.com/api/v1
+        # O navegador chama o mesmo dominio do frontend.
+        NEXT_PUBLIC_API_URL: /api/v1
+        # ALTERE "backend" caso o servico da API tenha outro nome na rede.
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:3001}
 
     environment:
-      - NEXT_PUBLIC_API_URL=https://api.seudominio.com/api/v1
+      - NEXT_PUBLIC_API_URL=/api/v1
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:3001}
 
     networks:
       - bullqnet
@@ -24,6 +28,7 @@ services:
           - node.role == manager
       labels:
         - traefik.enable=1
+        # ALTERE somente o dominio do frontend; a API passa pelo proxy interno.
         - traefik.http.routers.chat-bullq.rule=Host(`chat.seudominio.com`)
         - traefik.http.routers.chat-bullq.entrypoints=websecure
         - traefik.http.routers.chat-bullq.priority=1

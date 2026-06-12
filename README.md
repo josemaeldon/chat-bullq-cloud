@@ -13,7 +13,7 @@ Para instalar a stack completa com Docker:
 - Git.
 - Docker Engine 24+.
 - Docker Compose v2.
-- Um domínio com HTTPS para webhooks em produção.
+- Um domínio com HTTPS em produção.
 - Opcionalmente, uma chave OpenAI para os recursos de IA.
 
 Verifique:
@@ -75,31 +75,32 @@ Importante: `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` só criam as
 credenciais na primeira inicialização de um volume vazio. Se o volume
 `postgres_data` já existir, mudar essas variáveis não altera o usuário do banco.
 
-### 5. Configurar as URLs
+### 5. Configurar a URL pública
 
 Para desenvolvimento local:
 
 ```dotenv
-FRONTEND_URL=http://localhost:3000
-API_URL=http://localhost:3001/api/v1
-APP_URL=http://localhost:3001
+PUBLIC_URL=http://localhost:3000
 ```
 
 Para produção:
 
 ```dotenv
-FRONTEND_URL=https://app.seudominio.com
-API_URL=https://api.seudominio.com/api/v1
-APP_URL=https://api.seudominio.com
+PUBLIC_URL=https://app.seudominio.com
 ```
 
-Regras:
+O backend não precisa de domínio próprio. O navegador acessa a mesma origem
+do frontend e o Next.js encaminha internamente:
 
-- `FRONTEND_URL`: origem permitida pelo CORS, sem barra final.
-- `API_URL`: URL pública do backend com `/api/v1`.
-- `APP_URL`: URL pública do backend sem `/api/v1`; usada nos webhooks.
-- `NEXT_PUBLIC_API_URL` é incorporada no build do frontend. Ao mudar
-  `API_URL`, reconstrua a imagem do frontend.
+```text
+/api/v1/*   -> http://backend:3001/api/v1/*
+/socket.io  -> http://backend:3001/socket.io
+/docs       -> http://backend:3001/docs
+```
+
+Esse tráfego usa a rede privada do Docker. `PUBLIC_URL` também é usada para
+montar URLs externas de uploads e webhooks, pois esses endereços precisam ser
+acessíveis pelos navegadores e provedores.
 
 ### 6. Configurar recursos opcionais
 
@@ -150,8 +151,8 @@ docker compose logs -f backend frontend
 Quando estiver pronto:
 
 - Frontend: <http://localhost:3000>
-- API: <http://localhost:3001/api/v1>
-- Swagger: <http://localhost:3001/docs>
+- API pelo gateway: <http://localhost:3000/api/v1>
+- Swagger pelo gateway: <http://localhost:3000/docs>
 - MinIO API: <http://localhost:9000>
 - MinIO Console: <http://localhost:9001>
 
@@ -168,9 +169,7 @@ workspace recebe o papel `OWNER` da organização.
 | `JWT_SECRET` | Sim | Assinatura dos tokens de acesso. |
 | `JWT_REFRESH_SECRET` | Sim | Assinatura dos tokens de renovação. |
 | `MINIO_ROOT_PASSWORD` | Sim | Proteção do armazenamento MinIO. |
-| `FRONTEND_URL` | Em produção | Domínio público do painel e CORS. |
-| `API_URL` | Em produção | Endpoint usado pelo navegador. |
-| `APP_URL` | Para webhooks | URL pública recebida pelos provedores. |
+| `PUBLIC_URL` | Em produção | Único domínio do painel, API, uploads e webhooks. |
 | `OPENAI_API_KEY` | Para IA | Embeddings e recursos baseados em OpenAI. |
 | `VAPID_*` | Para push | Notificações do navegador. |
 | Portas públicas | Conforme ambiente | Evitar conflitos e exposição desnecessária. |
@@ -183,7 +182,7 @@ Em produção, use um proxy reverso como Traefik, Nginx ou Caddy:
 
 ```text
 app.seudominio.com -> frontend:3000
-api.seudominio.com -> backend:3001
+frontend:3000      -> backend:3001 pela rede Docker
 ```
 
 Recomendações:
@@ -194,7 +193,8 @@ Recomendações:
 - Restrinja as portas do MinIO ou publique-o atrás do proxy.
 - Use senhas únicas e um gerenciador de segredos.
 - Faça backup dos volumes antes de atualizar.
-- Defina `APP_URL` com uma URL acessível pela Evolution GO.
+- Defina `PUBLIC_URL` com uma URL acessível pela Evolution GO.
+- Não publique a porta `3001`; o compose usa apenas `expose` na rede interna.
 
 ## Evolution GO
 
@@ -253,7 +253,7 @@ docker compose down
 # Reiniciar um serviço
 docker compose restart backend
 
-# Reconstruir o frontend após alterar API_URL
+# Reconstruir o frontend após alterar a configuração de rede
 docker compose build frontend
 docker compose up -d frontend
 
@@ -281,7 +281,7 @@ Em outro terminal:
 ```bash
 cd frontend
 npm install
-NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1 npm run dev
+INTERNAL_API_URL=http://localhost:3001 NEXT_PUBLIC_API_URL=/api/v1 npm run dev
 ```
 
 ## Estrutura

@@ -7,7 +7,7 @@ receber e enviar mensagens do WhatsApp.
 
 1. Uma instalação acessível da Evolution GO.
 2. O `GLOBAL_API_KEY` da instalação.
-3. `APP_URL` no backend apontando para uma URL HTTPS pública.
+3. `PUBLIC_URL` da stack apontando para uma URL HTTPS pública.
 
 Para receber mídias, configure a Evolution GO com uma destas opções:
 
@@ -47,11 +47,12 @@ quando precisa descobrir o token. As demais rotas usam esse token no header
 
 ## Webhook
 
-Com `APP_URL` configurado, o backend chama automaticamente
+O compose repassa `PUBLIC_URL` ao backend como `APP_URL`. Com essa URL
+configurada, o backend chama automaticamente
 `POST /instance/connect` e registra:
 
 ```text
-https://api.example.com/api/v1/webhooks/WHATSAPP_EVOLUTION_GO
+https://app.example.com/api/v1/webhooks/WHATSAPP_EVOLUTION_GO
 ```
 
 Eventos assinados:
@@ -93,7 +94,7 @@ O webhook é roteado por `instanceId` e autenticado comparando
 - `Instância encontrada, mas o WhatsApp não está conectado`: reconecte a
   instância ou leia o QR Code no painel da Evolution GO.
 - `Não foi possível localizar a instância`: confira URL, API Key global e ID.
-- Webhook sem eventos: confira `APP_URL`, HTTPS público e a assinatura de
+- Webhook sem eventos: confira `PUBLIC_URL`, HTTPS público e a assinatura de
   eventos da instância.
 - Mídia sem preview: habilite `WEBHOOKFILES` ou o armazenamento MinIO na
   Evolution GO.

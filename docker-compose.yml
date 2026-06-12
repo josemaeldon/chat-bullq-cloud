@@ -3,7 +3,7 @@
 # Antes de subir:
 #   1. copie `.env.example` para `.env`;
 #   2. altere todos os valores marcados com CHANGE_ME;
-#   3. em producao, configure FRONTEND_URL, API_URL e APP_URL com HTTPS.
+#   3. em producao, configure PUBLIC_URL com HTTPS.
 #
 # O backend executa `prisma migrate deploy` automaticamente ao iniciar.
 
@@ -81,12 +81,12 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
 
-      # ALTERE para a URL publica do frontend, sem barra final.
-      CORS_ORIGIN: ${FRONTEND_URL:-http://localhost:3000}
+      # O navegador acessa tudo pelo frontend; esta e a unica origem publica.
+      CORS_ORIGIN: ${PUBLIC_URL:-http://localhost:3000}
 
-      # ALTERE para a URL publica do backend, sem /api/v1 e sem barra final.
-      # Evolution GO e outros provedores usam este endereco para webhooks.
-      APP_URL: ${APP_URL:-http://localhost:3001}
+      # URL externa apenas para callbacks/webhooks. As requisicoes normais
+      # frontend -> backend trafegam pela rede interna, sem dominio.
+      APP_URL: ${PUBLIC_URL:-http://localhost:3000}
 
       # Uploads locais ficam no volume backend_uploads.
       UPLOADS_DIR: /app/uploads
@@ -113,8 +113,9 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
-    ports:
-      - '${BACKEND_PORT:-3001}:3001'
+    # Backend nao e publicado no host. O frontend o acessa por backend:3001.
+    expose:
+      - '3001'
     volumes:
       - backend_uploads:/app/uploads
 
@@ -123,13 +124,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # ALTERE para a URL publica da API, incluindo /api/v1.
-        # Esta variavel entra no BUILD; ao muda-la, execute `docker compose build frontend`.
-        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:3001/api/v1}
+        # O navegador usa a mesma origem do frontend.
+        NEXT_PUBLIC_API_URL: /api/v1
+        # Destino privado usado pelos rewrites do servidor Next.js.
+        INTERNAL_API_URL: http://backend:3001
     restart: unless-stopped
     environment:
-      # Mantido tambem em runtime por clareza, mas o valor principal e o do build acima.
-      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:3001/api/v1}
+      NEXT_PUBLIC_API_URL: /api/v1
+      INTERNAL_API_URL: http://backend:3001
     depends_on:
       - backend
     ports:

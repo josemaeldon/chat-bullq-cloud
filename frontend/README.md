@@ -211,4 +211,7 @@ Os scripts disponíveis no projeto são:
 - `npm run start`
 - `npm run lint`
 
-O frontend espera uma API configurada em `NEXT_PUBLIC_API_URL`. Se essa variável não existir, ele usa `http://localhost:3001/api/v1`.
+Por padrão, o navegador usa `NEXT_PUBLIC_API_URL=/api/v1` na mesma origem.
+O servidor Next.js encaminha essa rota para `INTERNAL_API_URL`, normalmente
+`http://backend:3001` na rede privada do Docker. Isso evita expor o backend ou
+fazer o tráfego interno passar pelo domínio público.
