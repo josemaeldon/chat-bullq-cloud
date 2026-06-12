@@ -82,7 +82,7 @@ export class RagIndexerProcessor extends WorkerHost {
       return;
     }
 
-    const emb = await this.embeddings.embed(content);
+    const emb = await this.embeddings.embed(content, scope.organizationId);
 
     const entry: VectorEntry = {
       id: `${ownerType}:${ownerId}`,

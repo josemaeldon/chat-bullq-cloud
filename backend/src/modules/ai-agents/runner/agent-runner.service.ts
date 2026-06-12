@@ -229,6 +229,7 @@ export class AiAgentRunnerService {
     await this.augmentSystemPromptWithLayers(
       messages,
       organization,
+      conversation.organizationId,
       agent.id,
       conversation.contactId,
       conversation.id,
@@ -448,6 +449,7 @@ export class AiAgentRunnerService {
       // (fire-and-forget — falha não pode quebrar o run)
       this.scheduleAfterRunJobs(
         agent.id,
+        conversation.organizationId,
         conversation.id,
         conversation.contactId,
         triggerMessage,
@@ -910,6 +912,7 @@ export class AiAgentRunnerService {
   private async augmentSystemPromptWithLayers(
     messages: LlmMessage[],
     organization: { aiSecurityRules: unknown },
+    organizationId: string,
     agentId: string,
     contactId: string,
     conversationId: string,
@@ -937,6 +940,7 @@ export class AiAgentRunnerService {
         const results = await this.retrieval.retrieve({
           query: triggerText,
           scope: {
+            organizationId,
             agentId,
             contactId,
             conversationId,
@@ -979,6 +983,7 @@ export class AiAgentRunnerService {
    */
   private async scheduleAfterRunJobs(
     agentId: string,
+    organizationId: string,
     conversationId: string,
     contactId: string,
     triggerMessage: Message,
@@ -1014,7 +1019,12 @@ export class AiAgentRunnerService {
             type: 'index_message',
             messageId: triggerMessage.id,
             content: messageText,
-            scope: { conversationId, agentId, contactId },
+            scope: {
+              organizationId,
+              conversationId,
+              agentId,
+              contactId,
+            },
           },
           { removeOnComplete: 200, removeOnFail: 50 },
         );

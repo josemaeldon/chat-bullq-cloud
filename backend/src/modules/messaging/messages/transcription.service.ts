@@ -66,7 +66,7 @@ export class TranscriptionService {
       return metadata.transcription as TranscriptionResult;
     }
 
-    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    const apiKey = await this.resolveApiKey(organizationId);
     if (!apiKey) {
       throw new BadRequestException(
         'OPENAI_API_KEY not configured on the server',
@@ -132,6 +132,21 @@ export class TranscriptionService {
     });
 
     return result;
+  }
+
+  private async resolveApiKey(organizationId: string): Promise<string> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+    const orgApiKey =
+      org?.settings &&
+      typeof org.settings === 'object' &&
+      !Array.isArray(org.settings) &&
+      typeof (org.settings as Record<string, unknown>).openaiApiKey === 'string'
+        ? String((org.settings as Record<string, unknown>).openaiApiKey).trim()
+        : '';
+    return orgApiKey || this.config.get<string>('OPENAI_API_KEY') || '';
   }
 
   /**

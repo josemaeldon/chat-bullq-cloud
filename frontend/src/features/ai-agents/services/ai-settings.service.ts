@@ -32,6 +32,8 @@ export const DEFAULT_WATCHDOG_CONFIG: Required<WatchdogConfig> = {
 export interface OrganizationAiSettings {
   id: string;
   name: string;
+  openaiApiKeyConfigured: boolean;
+  openaiApiKeyLast4: string | null;
   aiEnabled: boolean;
   aiTimezone: string;
   aiBusinessHours: BusinessHoursConfig | null;
@@ -48,6 +50,8 @@ export interface OrganizationAiSettings {
 }
 
 export interface UpdateAiSettingsInput {
+  openaiApiKey?: string | null;
+  clearOpenAiApiKey?: boolean;
   aiEnabled?: boolean;
   aiTimezone?: string;
   aiBusinessHours?: BusinessHoursConfig | null;

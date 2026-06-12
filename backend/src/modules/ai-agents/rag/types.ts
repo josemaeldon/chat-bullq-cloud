@@ -47,6 +47,7 @@ export interface VectorEntry {
 }
 
 export interface SearchScope {
+  organizationId?: string;
   agentId?: string;
   contactId?: string;
   conversationId?: string;

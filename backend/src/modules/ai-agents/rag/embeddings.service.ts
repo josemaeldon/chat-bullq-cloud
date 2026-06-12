@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../../database/prisma.service';
 import type { EmbeddingResult } from './types';
 
 /**
@@ -17,9 +18,12 @@ export class EmbeddingsService {
   private readonly MODEL = 'text-embedding-3-small';
   /** USD cost per 1M tokens for `text-embedding-3-small`. */
   private readonly COST_PER_1M_TOKENS = 0.02;
-  private readonly apiKey: string;
+  private readonly fallbackApiKey: string;
 
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const apiKey =
       config.get<string>('OPENAI_API_KEY') ?? process.env.OPENAI_API_KEY ?? '';
     if (!apiKey) {
@@ -27,19 +31,20 @@ export class EmbeddingsService {
         'No OPENAI_API_KEY set — embeddings will fail at runtime',
       );
     }
-    this.apiKey = apiKey;
+    this.fallbackApiKey = apiKey;
   }
 
   /**
    * Embeds a single string. Returns the vector + cost metadata so the
    * caller can log it against the agent run's budget.
    */
-  async embed(text: string): Promise<EmbeddingResult> {
+  async embed(text: string, organizationId?: string): Promise<EmbeddingResult> {
     const t0 = Date.now();
+    const apiKey = await this.resolveApiKey(organizationId);
     const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ model: this.MODEL, input: text }),
@@ -83,14 +88,18 @@ export class EmbeddingsService {
    * across inputs so the caller can attribute cost back to each item
    * (the API itself only returns one aggregate token count).
    */
-  async embedBatch(texts: string[]): Promise<EmbeddingResult[]> {
+  async embedBatch(
+    texts: string[],
+    organizationId?: string,
+  ): Promise<EmbeddingResult[]> {
     if (texts.length === 0) return [];
 
     const t0 = Date.now();
+    const apiKey = await this.resolveApiKey(organizationId);
     const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ model: this.MODEL, input: texts }),
@@ -130,5 +139,27 @@ export class EmbeddingsService {
       tokensUsed: perCallTokens,
       costUsd: perCallCost,
     }));
+  }
+
+  private async resolveApiKey(organizationId?: string): Promise<string> {
+    if (organizationId) {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true },
+      });
+      const key =
+        org?.settings &&
+        typeof org.settings === 'object' &&
+        !Array.isArray(org.settings) &&
+        typeof (org.settings as Record<string, unknown>).openaiApiKey === 'string'
+          ? String((org.settings as Record<string, unknown>).openaiApiKey).trim()
+          : '';
+      if (key) return key;
+    }
+
+    if (this.fallbackApiKey) return this.fallbackApiKey;
+    throw new InternalServerErrorException(
+      'OpenAI API key not configured for this organization',
+    );
   }
 }

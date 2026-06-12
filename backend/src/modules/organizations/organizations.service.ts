@@ -21,20 +21,34 @@ export class OrganizationsService {
   async getOrganization(orgId: string) {
     const org = await this.repository.findById(orgId);
     if (!org) throw new NotFoundException('Organization not found');
-    return org;
+    return this.serializeOrganization(org);
   }
 
   async updateOrganization(orgId: string, dto: UpdateOrganizationDto) {
-    await this.getOrganization(orgId);
+    const org = await this.repository.findById(orgId);
+    if (!org) throw new NotFoundException('Organization not found');
     const {
       aiBusinessHours,
       watchdogBusinessHours,
       watchdogConfig,
       allowedUrlDomains,
+      openaiApiKey,
+      clearOpenAiApiKey,
       ...rest
     } = dto;
-    return this.repository.update(orgId, {
+    const currentSettings =
+      org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+        ? { ...(org.settings as Record<string, unknown>) }
+        : {};
+    if (clearOpenAiApiKey) {
+      delete currentSettings.openaiApiKey;
+    } else if (typeof openaiApiKey === 'string' && openaiApiKey.trim().length > 0) {
+      currentSettings.openaiApiKey = openaiApiKey.trim();
+    }
+
+    const updated = await this.repository.update(orgId, {
       ...rest,
+      settings: currentSettings as Prisma.InputJsonValue,
       ...(aiBusinessHours !== undefined
         ? { aiBusinessHours: aiBusinessHours as object }
         : {}),
@@ -53,6 +67,22 @@ export class OrganizationsService {
           }
         : {}),
     });
+    return this.serializeOrganization(updated);
+  }
+
+  private serializeOrganization(org: Record<string, any>) {
+    const settings =
+      org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+        ? (org.settings as Record<string, unknown>)
+        : {};
+    const openaiApiKey = typeof settings.openaiApiKey === 'string' ? settings.openaiApiKey : '';
+    const { settings: _settings, ...rest } = org;
+    return {
+      ...rest,
+      openaiApiKeyConfigured: openaiApiKey.length > 0,
+      openaiApiKeyLast4:
+        openaiApiKey.length >= 4 ? openaiApiKey.slice(-4) : null,
+    };
   }
 
   async getMembers(orgId: string) {

@@ -72,6 +72,24 @@ export class UpdateOrganizationDto {
 
   @ApiPropertyOptional({
     description:
+      'OpenAI API key used for embeddings and audio transcription. Omit to keep the current key.',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(512)
+  openaiApiKey?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'When true, removes the currently stored OpenAI API key.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  clearOpenAiApiKey?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       'Notas livres que entram no system prompt de TODOS os agentes da org. Use pra info que muda com frequência (regras de entrega de isca, horários de live, política de reembolso, talking points atuais). Empty = sem notas.',
     nullable: true,
   })
