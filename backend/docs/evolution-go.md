@@ -8,6 +8,8 @@ receber e enviar mensagens do WhatsApp.
 1. Uma instalação acessível da Evolution GO.
 2. O `GLOBAL_API_KEY` da instalação.
 3. `PUBLIC_URL` da stack apontando para uma URL HTTPS pública.
+4. A licença da Evolution GO ativada. Antes da ativação, as rotas da API
+   respondem `503`.
 
 Para receber mídias, configure a Evolution GO com uma destas opções:
 
@@ -16,6 +18,10 @@ Para receber mídias, configure a Evolution GO com uma destas opções:
 
 Sem uma dessas opções, textos e status funcionam, mas a URL criptografada
 original do WhatsApp não pode ser reproduzida diretamente pelo navegador.
+
+Para testes locais, consulte
+[TESTE_LOCAL.md](../../../TESTE_LOCAL.md). O ambiente local usa a rede Docker
+para os webhooks e, por isso, não precisa de túnel público.
 
 ## Ativação
 

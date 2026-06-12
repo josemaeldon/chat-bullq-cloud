@@ -41,7 +41,26 @@ Endereços:
 
 - Chat BullQ: <http://localhost:3100>
 - Evolution GO: <http://localhost:8080>
+- Manager Evolution GO: <http://localhost:8080/manager/login>
 - Swagger Evolution GO: <http://localhost:8080/swagger/index.html>
+
+## Ativar a Evolution GO
+
+A Evolution GO exige ativação de licença mesmo em ambiente local. Antes da
+ativação, o container permanece ligado, mas as rotas da API respondem `503`.
+
+1. Abra <http://localhost:8080/manager/login>.
+2. Informe a API URL `http://localhost:8080`.
+3. Informe a API Key `evolution-go-local-key`.
+4. Conclua o registro solicitado pela Evolution Foundation.
+5. Confirme que o estado mudou para `active`:
+
+```bash
+curl http://localhost:8080/license/status
+```
+
+O estado da licença fica salvo no volume do PostgreSQL da Evolution GO e é
+preservado ao parar ou reiniciar os containers.
 
 ## Configurar o canal
 
@@ -66,9 +85,15 @@ Evolution GO inclui as mídias em base64 nos webhooks durante os testes.
 ## Verificar
 
 ```bash
-docker compose -p chat-bullq-local-test ps
+docker compose \
+  -p chat-bullq-local-test \
+  -f docker-compose.yml \
+  -f docker-compose.build.yml \
+  -f docker-compose.evolution-go.yml \
+  ps
 
 curl http://localhost:8080/
+curl http://localhost:8080/license/status
 curl -I http://localhost:3100/login
 
 docker logs -f chat-bullq-local-test-evolution-go-1
@@ -80,8 +105,19 @@ docker logs -f chat-bullq-local-test-backend-1
 Os dados e a sessão do WhatsApp são preservados:
 
 ```bash
-docker compose -p chat-bullq-local-test stop
-docker compose -p chat-bullq-local-test start
+docker compose \
+  -p chat-bullq-local-test \
+  -f docker-compose.yml \
+  -f docker-compose.build.yml \
+  -f docker-compose.evolution-go.yml \
+  stop
+
+docker compose \
+  -p chat-bullq-local-test \
+  -f docker-compose.yml \
+  -f docker-compose.build.yml \
+  -f docker-compose.evolution-go.yml \
+  start
 ```
 
 ## Remover completamente
