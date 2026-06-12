@@ -34,6 +34,17 @@ export class UpdateOrganizationDto {
   @MaxLength(120)
   browserTabTitle?: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'Custom icon URL shown in the browser tab for the workspace. Null/empty clears and falls back to the default app icon.',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(1000)
+  browserTabIconUrl?: string | null;
+
   // ─── AI settings ────────────────────────────────────────────────
 
   @ApiPropertyOptional({ description: 'Master kill switch for AI agents' })

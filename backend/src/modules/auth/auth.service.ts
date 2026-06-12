@@ -455,6 +455,10 @@ export class AuthService {
         typeof settings.browserTabTitle === 'string'
           ? settings.browserTabTitle
           : null,
+      browserTabIconUrl:
+        typeof settings.browserTabIconUrl === 'string'
+          ? settings.browserTabIconUrl
+          : null,
       role: membership.role,
       accessibleChannelIds:
         membership.role === 'OWNER' || membership.role === 'ADMIN'

@@ -24,6 +24,7 @@ interface OrgInfo {
   name: string;
   slug: string;
   browserTabTitle: string | null;
+  browserTabIconUrl: string | null;
   role: string;
   accessibleChannelIds: 'ALL' | string[];
 }

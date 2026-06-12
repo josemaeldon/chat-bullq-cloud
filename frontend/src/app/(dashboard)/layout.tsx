@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { SidebarLayout } from '@/components/ui/sidebar-layout';
 import { Navbar, NavbarSection, NavbarSpacer } from '@/components/ui/navbar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
@@ -9,6 +10,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { authService } from '@/features/auth/services/auth.service';
 import { usePermissionsSync } from '@/features/settings/hooks/use-permissions-sync';
 import { ToolFailureBanner } from '@/features/ai-agents/components/tool-failure-banner';
+import { formatWorkspaceTitle, getWorkspacePageTitle } from '@/lib/browser-title';
 
 export default function DashboardLayout({
   children,
@@ -16,6 +18,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, organizations, activeOrgId, setAuth, setActiveOrg } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,11 +56,41 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const activeOrg = organizations.find((org) => org.id === activeOrgId);
-    const title =
-      activeOrg?.browserTabTitle?.trim() ||
-      activeOrg?.name?.trim() ||
-      'Chat BullQ';
+    const title = formatWorkspaceTitle(
+      activeOrg?.name ?? 'Chat BullQ',
+      getWorkspacePageTitle(pathname),
+    );
     document.title = title;
+  }, [organizations, activeOrgId, pathname]);
+
+  useEffect(() => {
+    const activeOrg = organizations.find((org) => org.id === activeOrgId);
+    const iconUrl = activeOrg?.browserTabIconUrl?.trim();
+    const head = document.head;
+    if (!head) return;
+
+    const ensureLink = (rel: string) => {
+      let link = head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = rel;
+        head.appendChild(link);
+      }
+      return link;
+    };
+
+    const iconLink = ensureLink('icon');
+    if (!iconLink.dataset.defaultHref) {
+      iconLink.dataset.defaultHref = iconLink.getAttribute('href') || '/icon.png';
+    }
+    iconLink.href = iconUrl || iconLink.dataset.defaultHref;
+
+    const shortcutLink = ensureLink('shortcut icon');
+    if (!shortcutLink.dataset.defaultHref) {
+      shortcutLink.dataset.defaultHref =
+        shortcutLink.getAttribute('href') || iconLink.dataset.defaultHref || '/icon.png';
+    }
+    shortcutLink.href = iconUrl || shortcutLink.dataset.defaultHref;
   }, [organizations, activeOrgId]);
 
   if (isLoading) {

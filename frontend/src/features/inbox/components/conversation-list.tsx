@@ -42,6 +42,7 @@ import { tagsService } from '@/features/settings/services/tags.service';
 import { useOrgId } from '@/hooks/use-org-query-key';
 import { useSocket } from '../hooks/use-socket';
 import { useAuthStore } from '@/stores/auth-store';
+import { formatWorkspaceTitle, getWorkspacePageTitle } from '@/lib/browser-title';
 import { useInboxPreferences } from '../hooks/use-inbox-preferences';
 import { ConversationContextMenu } from './conversation-context-menu';
 import { BulkActionsMenu } from './bulk-actions-menu';
@@ -305,10 +306,10 @@ export function ConversationList({ activeId, onSelect, viewId }: ConversationLis
   // Título da aba com a contagem de pendentes, usando o nome configurado da org.
   useEffect(() => {
     const activeOrg = organizations.find((org) => org.id === activeOrgId);
-    const baseTitle =
-      activeOrg?.browserTabTitle?.trim() ||
-      activeOrg?.name?.trim() ||
-      'Chat BullQ';
+    const baseTitle = formatWorkspaceTitle(
+      activeOrg?.name ?? 'Chat BullQ',
+      getWorkspacePageTitle('/inbox'),
+    );
     const pending = statusCounts?.['PENDING'] ?? 0;
     document.title = pending > 0 ? `(${pending}) ${baseTitle}` : baseTitle;
     return () => {

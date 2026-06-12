@@ -33,6 +33,7 @@ export class OrganizationsService {
       watchdogConfig,
       allowedUrlDomains,
       browserTabTitle,
+      browserTabIconUrl,
       openaiApiKey,
       clearOpenAiApiKey,
       ...rest
@@ -48,6 +49,14 @@ export class OrganizationsService {
       browserTabTitle.trim().length > 0
     ) {
       currentSettings.browserTabTitle = browserTabTitle.trim();
+    }
+    if (browserTabIconUrl === null || browserTabIconUrl === '') {
+      delete currentSettings.browserTabIconUrl;
+    } else if (
+      typeof browserTabIconUrl === 'string' &&
+      browserTabIconUrl.trim().length > 0
+    ) {
+      currentSettings.browserTabIconUrl = browserTabIconUrl.trim();
     }
     if (clearOpenAiApiKey) {
       delete currentSettings.openaiApiKey;
@@ -91,6 +100,10 @@ export class OrganizationsService {
       browserTabTitle:
         typeof settings.browserTabTitle === 'string'
           ? settings.browserTabTitle
+          : null,
+      browserTabIconUrl:
+        typeof settings.browserTabIconUrl === 'string'
+          ? settings.browserTabIconUrl
           : null,
       openaiApiKeyConfigured: openaiApiKey.length > 0,
       openaiApiKeyLast4:

@@ -17,20 +17,20 @@ export default function SettingsGeneralPage() {
 
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [browserTabTitle, setBrowserTabTitle] = useState('');
+  const [browserTabIconUrl, setBrowserTabIconUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!data) return;
     setName(data.name ?? '');
     setLogoUrl(data.logoUrl ?? '');
-    setBrowserTabTitle(data.browserTabTitle ?? '');
+    setBrowserTabIconUrl(data.browserTabIconUrl ?? '');
   }, [data]);
 
   const handleSave = async () => {
     const trimmedName = name.trim();
     const trimmedLogoUrl = logoUrl.trim();
-    const trimmedBrowserTabTitle = browserTabTitle.trim();
+    const trimmedBrowserTabIconUrl = browserTabIconUrl.trim();
 
     if (!trimmedName) {
       toast.error('Informe o nome da organização');
@@ -42,13 +42,13 @@ export default function SettingsGeneralPage() {
       const updated = await organizationGeneralService.update({
         name: trimmedName,
         logoUrl: trimmedLogoUrl || null,
-        browserTabTitle: trimmedBrowserTabTitle || null,
+        browserTabIconUrl: trimmedBrowserTabIconUrl || null,
       });
 
       updateActiveOrganization({
         name: updated.name,
         slug: updated.slug,
-        browserTabTitle: updated.browserTabTitle,
+        browserTabIconUrl: updated.browserTabIconUrl,
       });
       queryClient.invalidateQueries({ queryKey: ['organization-general'] });
       queryClient.invalidateQueries({ queryKey: ['ai-settings'] });
@@ -114,20 +114,23 @@ export default function SettingsGeneralPage() {
 
             <div>
               <label
-                htmlFor="organization-browser-title"
+                htmlFor="organization-browser-icon"
                 className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
               >
-                Título da aba do navegador
+                Ícone da aba do navegador
               </label>
-              <input
-                id="organization-browser-title"
-                value={browserTabTitle}
-                onChange={(e) => setBrowserTabTitle(e.target.value)}
-                placeholder="Ex: Atendimento | Minha Empresa"
-                className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-              />
+              <div className="relative mt-2">
+                <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <input
+                  id="organization-browser-icon"
+                  value={browserTabIconUrl}
+                  onChange={(e) => setBrowserTabIconUrl(e.target.value)}
+                  placeholder="https://exemplo.com/favicon.png"
+                  className="w-full rounded-lg border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                />
+              </div>
               <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                Se ficar vazio, a aba usa o nome da organização como padrão.
+                Pode ser PNG, JPG, SVG ou ICO. Se ficar vazio, o sistema usa o ícone padrão atual.
               </p>
             </div>
 
@@ -160,9 +163,9 @@ export default function SettingsGeneralPage() {
                 Pré-visualização
               </p>
               <div className="mt-4 flex items-center gap-3">
-                {logoUrl.trim() ? (
+                {(browserTabIconUrl.trim() || logoUrl.trim()) ? (
                   <img
-                    src={logoUrl.trim()}
+                    src={browserTabIconUrl.trim() || logoUrl.trim()}
                     alt={name || 'Logo da organização'}
                     className="h-14 w-14 rounded-2xl border border-zinc-200 bg-white object-cover p-2 dark:border-zinc-800 dark:bg-zinc-900"
                   />
@@ -176,7 +179,7 @@ export default function SettingsGeneralPage() {
                     {name.trim() || 'Nome da organização'}
                   </p>
                   <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-                    {browserTabTitle.trim() || data?.slug || 'slug-da-organizacao'}
+                    {data?.slug || 'slug-da-organizacao'}
                   </p>
                 </div>
               </div>
