@@ -10,7 +10,7 @@ import { EvolutionGoMessageMapper } from './evolution-go.message-mapper';
 
 @Injectable()
 export class EvolutionGoInboundAdapter implements InboundChannelPort {
-  readonly channelType = ChannelType.WHATSAPP_EVOLUTION_GO;
+  readonly channelType: ChannelType = ChannelType.WHATSAPP_EVOLUTION_GO;
   private readonly logger = new Logger(EvolutionGoInboundAdapter.name);
 
   constructor(private readonly mapper: EvolutionGoMessageMapper) {}
@@ -21,17 +21,36 @@ export class EvolutionGoInboundAdapter implements InboundChannelPort {
   ): ChannelLocator[] {
     const event = (payload || {}) as Record<string, any>;
     return [{
+      instanceName: String(
+        event.instanceName || event.instance?.name || event.instance || '',
+      ) || undefined,
       instanceId: String(
         event.instanceId || event.instance?.id || headers.instanceid || '',
       ) || undefined,
       token: String(
-        event.instanceToken || event.instance?.token || headers.apikey || '',
+        event.instanceToken ||
+          event.instance?.token ||
+          event.apikey ||
+          headers.apikey ||
+          '',
       ) || undefined,
     }];
   }
 
   matchesChannel(channel: Channel, locator: ChannelLocator): boolean {
     const config = channel.config as Record<string, any>;
+    if (config.apiVersion === 'v2') {
+      if (locator.instanceName && config.instanceName) {
+        return String(config.instanceName) === String(locator.instanceName);
+      }
+      if (locator.instanceId && config.instanceId) {
+        return String(config.instanceId) === String(locator.instanceId);
+      }
+      if (locator.token && config.apiKey) {
+        return this.safeEqual(String(config.apiKey), String(locator.token));
+      }
+      return false;
+    }
     if (locator.instanceId && config.instanceId) {
       return String(config.instanceId) === String(locator.instanceId);
     }
@@ -50,7 +69,9 @@ export class EvolutionGoInboundAdapter implements InboundChannelPort {
     const config = (channel?.config || {}) as Record<string, any>;
     const payloadToken = this.bodyToken(rawBody);
     const candidate = payloadToken || headers.apikey;
-    const expected = webhookSecret || config.instanceToken;
+    const expected =
+      webhookSecret ||
+      (config.apiVersion === 'v2' ? config.apiKey : config.instanceToken);
     return !!candidate && !!expected && this.safeEqual(String(expected), String(candidate));
   }
 
@@ -58,11 +79,21 @@ export class EvolutionGoInboundAdapter implements InboundChannelPort {
     const result: WebhookParseResult = { messages: [], statuses: [], errors: [] };
     try {
       const event = payload as any;
-      const eventType = String(event?.event || event?.EventType || '').toUpperCase();
-      if (eventType === 'MESSAGE' || eventType === 'SEND_MESSAGE') {
-        const message = this.mapper.normalizeInbound(event);
+      const eventType = String(event?.event || event?.EventType || '')
+        .toUpperCase()
+        .replace(/\./g, '_');
+      if (
+        eventType === 'MESSAGE' ||
+        eventType === 'SEND_MESSAGE' ||
+        eventType === 'MESSAGES_UPSERT'
+      ) {
+        const message = this.mapper.normalizeInbound(event, this.channelType);
         if (message) result.messages.push(message);
-      } else if (eventType === 'RECEIPT' || eventType === 'READ_RECEIPT') {
+      } else if (
+        eventType === 'RECEIPT' ||
+        eventType === 'READ_RECEIPT' ||
+        eventType === 'MESSAGES_UPDATE'
+      ) {
         result.statuses.push(...this.mapper.normalizeStatuses(event));
       }
     } catch (error: any) {
@@ -83,7 +114,7 @@ export class EvolutionGoInboundAdapter implements InboundChannelPort {
   private bodyToken(rawBody: Buffer): string | undefined {
     try {
       const body = JSON.parse(rawBody.toString('utf8'));
-      return body?.instanceToken || body?.instance?.token;
+      return body?.instanceToken || body?.instance?.token || body?.apikey;
     } catch {
       return undefined;
     }

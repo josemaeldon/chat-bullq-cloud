@@ -11,6 +11,7 @@ import { EvolutionGoIcon, ZappfyIcon, MetaIcon, InstagramIcon } from '@/componen
 const channelIcons: Record<string, React.ElementType> = {
   WHATSAPP_ZAPPFY: ZappfyIcon,
   WHATSAPP_EVOLUTION_GO: EvolutionGoIcon,
+  WHATSAPP_EVOLUTION_API: EvolutionGoIcon,
   WHATSAPP_OFFICIAL: MetaIcon,
   INSTAGRAM: InstagramIcon,
 };

@@ -29,6 +29,7 @@ import { EditChannelDialog } from './edit-channel-dialog';
 const channelTypeMap: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   WHATSAPP_ZAPPFY: { label: 'WhatsApp (Zappfy)', icon: ZappfyIcon, color: 'bg-zinc-50 dark:bg-zinc-800' },
   WHATSAPP_EVOLUTION_GO: { label: 'WhatsApp (Evolution GO)', icon: EvolutionGoIcon, color: 'bg-zinc-50 dark:bg-zinc-800' },
+  WHATSAPP_EVOLUTION_API: { label: 'WhatsApp (Evolution API v2)', icon: EvolutionGoIcon, color: 'bg-zinc-50 dark:bg-zinc-800' },
   WHATSAPP_OFFICIAL: { label: 'WhatsApp Official', icon: MetaIcon, color: 'bg-zinc-50 dark:bg-zinc-800' },
   INSTAGRAM: { label: 'Instagram', icon: InstagramIcon, color: 'bg-zinc-50 dark:bg-zinc-800' },
 };
@@ -43,7 +44,12 @@ export function ChannelCard({ channel, onUpdate }: ChannelCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showQr, setShowQr] = useState(false);
-  const meta = channelTypeMap[channel.type] || { label: channel.type, icon: MessageSquare, color: 'bg-gray-500' };
+  const meta =
+    channelTypeMap[channel.type] || {
+      label: channel.type,
+      icon: MessageSquare,
+      color: 'bg-gray-500',
+    };
   const Icon = meta.icon;
   const sync = useChannelSync({ channelId: channel.id, channelType: channel.type });
 
@@ -249,7 +255,7 @@ export function ChannelCard({ channel, onUpdate }: ChannelCardProps) {
               Sincronizar
             </button>
           )}
-          {channel.type === 'WHATSAPP_EVOLUTION_GO' && (
+          {(channel.type === 'WHATSAPP_EVOLUTION_GO' || channel.type === 'WHATSAPP_EVOLUTION_API') && (
             <button
               onClick={() => setShowQr(true)}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400"
@@ -338,6 +344,8 @@ function EvolutionGoQrDialog({
 }) {
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [rawCode, setRawCode] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
 
   const loadQr = async () => {
@@ -347,6 +355,8 @@ function EvolutionGoQrDialog({
       const result = await channelsService.getEvolutionGoQr(channel.id);
       setConnected(result.connected);
       setQrCode(result.qrCode);
+      setPairingCode(result.pairingCode ?? null);
+      setRawCode(result.code ?? null);
       if (result.connected) toast.success('WhatsApp já está conectado');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao buscar QR Code');
@@ -372,7 +382,9 @@ function EvolutionGoQrDialog({
           Conectar {channel.name}
         </h3>
         <p className="mt-1 text-sm text-zinc-500">
-          No WhatsApp, abra Aparelhos conectados e escaneie o QR Code.
+          {channel.config?.apiVersion === 'v2'
+            ? 'Use o QR Code ou o pairing code retornado pela Evolution API v2.'
+            : 'No WhatsApp, abra Aparelhos conectados e escaneie o QR Code.'}
         </p>
 
         <div className="mt-5 flex min-h-64 items-center justify-center rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800">
@@ -385,6 +397,29 @@ function EvolutionGoQrDialog({
             </div>
           ) : qrCode ? (
             <img src={qrCode} alt="QR Code da Evolution GO" className="h-56 w-56" />
+          ) : pairingCode || rawCode ? (
+            <div className="space-y-3 px-3">
+              {pairingCode && (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                    Pairing code
+                  </p>
+                  <p className="mt-1 rounded-lg bg-white px-3 py-2 font-mono text-lg font-semibold text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+                    {pairingCode}
+                  </p>
+                </div>
+              )}
+              {rawCode && (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                    Código retornado pela API
+                  </p>
+                  <p className="break-all rounded-lg bg-white px-3 py-2 font-mono text-[11px] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+                    {rawCode}
+                  </p>
+                </div>
+              )}
+            </div>
           ) : (
             <QrCode className="h-16 w-16 text-zinc-300 dark:text-zinc-600" />
           )}

@@ -11,7 +11,7 @@ import { EvolutionGoMessageMapper } from './evolution-go.message-mapper';
 
 @Injectable()
 export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
-  readonly channelType = ChannelType.WHATSAPP_EVOLUTION_GO;
+  readonly channelType: ChannelType = ChannelType.WHATSAPP_EVOLUTION_GO;
   private readonly logger = new Logger(EvolutionGoOutboundAdapter.name);
 
   constructor(
@@ -24,12 +24,22 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
     contactExternalId: string,
     message: NormalizedOutboundMessage,
   ): Promise<SendResult> {
-    const { endpoint, payload } = this.mapper.denormalize(message, contactExternalId);
+    const apiVersion =
+      ((channel.config as Record<string, any>)?.apiVersion as
+        | 'legacy'
+        | 'v2'
+        | undefined) || 'legacy';
+    const { endpoint, payload } = this.mapper.denormalize(
+      message,
+      contactExternalId,
+      apiVersion,
+    );
     const response = await this.httpClient.sendRequest(channel, endpoint, payload);
     return {
       externalId:
         response?.data?.Info?.ID ||
         response?.data?.info?.id ||
+        response?.key?.id ||
         response?.Info?.ID ||
         response?.id ||
         '',
@@ -41,12 +51,29 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
     channel: Channel,
     contactExternalId: string,
   ): Promise<void> {
+    const config = (channel.config as Record<string, any>) || {};
     try {
-      await this.httpClient.sendRequest(channel, '/message/presence', {
-        number: contactExternalId.replace(/@.+$/, ''),
-        state: 'composing',
-        isAudio: false,
-      });
+      if (config.apiVersion === 'v2') {
+        await this.httpClient.sendRequest(
+          channel,
+          `/chat/sendPresence/${encodeURIComponent(
+            String(config.instanceName || config.instanceId || ''),
+          )}`,
+          {
+            number: contactExternalId.replace(/@.+$/, ''),
+            options: {
+              delay: 1200,
+              number: contactExternalId.replace(/@.+$/, ''),
+            },
+          },
+        );
+      } else {
+        await this.httpClient.sendRequest(channel, '/message/presence', {
+          number: contactExternalId.replace(/@.+$/, ''),
+          state: 'composing',
+          isAudio: false,
+        });
+      }
     } catch (error: any) {
       this.logger.warn(`Evolution GO typing indicator failed: ${error.message}`);
     }

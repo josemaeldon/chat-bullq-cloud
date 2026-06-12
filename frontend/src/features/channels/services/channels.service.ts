@@ -4,6 +4,7 @@ export type ChannelType =
   | 'WHATSAPP_OFFICIAL'
   | 'WHATSAPP_ZAPPFY'
   | 'WHATSAPP_EVOLUTION_GO'
+  | 'WHATSAPP_EVOLUTION_API'
   | 'INSTAGRAM';
 
 export type ChannelVisibility = 'ORG' | 'PRIVATE';
@@ -55,6 +56,7 @@ export interface EvolutionGoQrResult {
   connected: boolean;
   qrCode: string | null;
   code: string | null;
+  pairingCode?: string | null;
 }
 
 export type SyncStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';

@@ -124,7 +124,8 @@ export class ContextEnrichmentService {
         ? 'INSTAGRAM'
         : channel.type === 'WHATSAPP_OFFICIAL' ||
             channel.type === 'WHATSAPP_ZAPPFY' ||
-            channel.type === 'WHATSAPP_EVOLUTION_GO'
+            channel.type === 'WHATSAPP_EVOLUTION_GO' ||
+            channel.type === 'WHATSAPP_EVOLUTION_API'
           ? 'WHATSAPP'
           : 'WEB';
     return { kind, name: channel.name };

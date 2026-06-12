@@ -23,6 +23,8 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { WebhookEventsService } from './webhook-events.service';
 import { WebhookThrottleGuard } from './webhook-throttle.guard';
 import { EvolutionGoModule } from './adapters/evolution-go/evolution-go.module';
+import { EvolutionApiInboundAdapter } from './adapters/evolution-go/evolution-api.inbound-adapter';
+import { EvolutionApiOutboundAdapter } from './adapters/evolution-go/evolution-api.outbound-adapter';
 import { EvolutionGoInboundAdapter } from './adapters/evolution-go/evolution-go.inbound-adapter';
 import { EvolutionGoOutboundAdapter } from './adapters/evolution-go/evolution-go.outbound-adapter';
 
@@ -77,6 +79,8 @@ export class ChannelHubModule implements OnModuleInit {
     private readonly instagramSync: InstagramSyncAdapter,
     private readonly evolutionGoInbound: EvolutionGoInboundAdapter,
     private readonly evolutionGoOutbound: EvolutionGoOutboundAdapter,
+    private readonly evolutionApiInbound: EvolutionApiInboundAdapter,
+    private readonly evolutionApiOutbound: EvolutionApiOutboundAdapter,
   ) {}
 
   onModuleInit() {
@@ -84,6 +88,7 @@ export class ChannelHubModule implements OnModuleInit {
     this.registry.register(this.waOfficialInbound, this.waOfficialOutbound);
     this.registry.register(this.instagramInbound, this.instagramOutbound);
     this.registry.register(this.evolutionGoInbound, this.evolutionGoOutbound);
+    this.registry.register(this.evolutionApiInbound, this.evolutionApiOutbound);
     this.registry.registerHistorySync(this.zappfySync);
     this.registry.registerHistorySync(this.instagramSync);
   }

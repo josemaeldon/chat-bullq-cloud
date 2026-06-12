@@ -6,7 +6,9 @@ interface EvolutionGoConfig {
   baseUrl: string;
   apiKey: string;
   instanceId: string;
+  instanceName?: string;
   instanceToken?: string;
+  apiVersion?: 'legacy' | 'v2';
 }
 
 export interface CreateEvolutionGoInstanceInput {
@@ -14,6 +16,7 @@ export interface CreateEvolutionGoInstanceInput {
   apiKey: string;
   name: string;
   token: string;
+  apiVersion?: 'legacy' | 'v2';
   proxy?: {
     host: string;
     address?: string;
@@ -27,6 +30,14 @@ export interface CreateEvolutionGoInstanceInput {
 @Injectable()
 export class EvolutionGoHttpClient {
   private readonly logger = new Logger(EvolutionGoHttpClient.name);
+
+  private isV2(config: EvolutionGoConfig): boolean {
+    return config.apiVersion === 'v2';
+  }
+
+  private resolveInstanceRef(config: EvolutionGoConfig): string {
+    return config.instanceName || config.instanceId;
+  }
 
   private config(channel: Channel): EvolutionGoConfig {
     const config = channel.config as unknown as EvolutionGoConfig;
@@ -43,12 +54,15 @@ export class EvolutionGoHttpClient {
 
   private createClient(channel: Channel, admin = false): AxiosInstance {
     const config = this.config(channel);
-    const apiKey = admin ? config.apiKey : config.instanceToken || config.apiKey;
+    const apiKey =
+      this.isV2(config) || admin
+        ? config.apiKey
+        : config.instanceToken || config.apiKey;
     return axios.create({
       baseURL: config.baseUrl,
       headers: {
         apikey: apiKey,
-        instanceId: config.instanceId,
+        ...(this.isV2(config) ? {} : { instanceId: config.instanceId }),
       },
       timeout: 30000,
     });
@@ -56,8 +70,34 @@ export class EvolutionGoHttpClient {
 
   async createInstance(input: CreateEvolutionGoInstanceInput): Promise<any> {
     try {
+      const baseUrl = input.baseUrl.replace(/\/+$/, '');
+      if (input.apiVersion === 'v2') {
+        const response = await axios.post(
+          `${baseUrl}/instance/create`,
+          {
+            instanceName: input.name,
+            token: input.token,
+            qrcode: true,
+            ...(input.proxy
+              ? {
+                  proxyHost: input.proxy.host,
+                  proxyPort: input.proxy.port,
+                  proxyProtocol: input.proxy.protocol,
+                  proxyUsername: input.proxy.username,
+                  proxyPassword: input.proxy.password,
+                }
+              : {}),
+          },
+          {
+            headers: { apikey: input.apiKey },
+            timeout: 30000,
+          },
+        );
+        return response.data?.instance ?? response.data?.data ?? response.data;
+      }
+
       const response = await axios.post(
-        `${input.baseUrl.replace(/\/+$/, '')}/instance/create`,
+        `${baseUrl}/instance/create`,
         {
           name: input.name,
           token: input.token,
@@ -99,6 +139,23 @@ export class EvolutionGoHttpClient {
   async getInstanceInfo(channel: Channel): Promise<any> {
     const config = this.config(channel);
     try {
+      if (this.isV2(config)) {
+        const response = await this.createClient(channel, true).get(
+          '/instance/fetchInstances',
+          {
+            params: {
+              ...(config.instanceName ? { instanceName: config.instanceName } : {}),
+              ...(config.instanceId ? { instanceId: config.instanceId } : {}),
+            },
+          },
+        );
+        const items = Array.isArray(response.data)
+          ? response.data
+          : response.data?.response;
+        const first = Array.isArray(items) ? items[0] : items;
+        return first?.instance ?? first ?? response.data;
+      }
+
       const response = await this.createClient(channel, true).get(
         `/instance/info/${encodeURIComponent(config.instanceId)}`,
       );
@@ -110,7 +167,17 @@ export class EvolutionGoHttpClient {
   }
 
   async getInstanceStatus(channel: Channel): Promise<any> {
+    const config = this.config(channel);
     try {
+      if (this.isV2(config)) {
+        const response = await this.createClient(channel, true).get(
+          `/instance/connectionState/${encodeURIComponent(
+            this.resolveInstanceRef(config),
+          )}`,
+        );
+        return response.data?.instance ?? response.data?.data ?? response.data;
+      }
+
       const response = await this.createClient(channel).get('/instance/status');
       return response.data?.data ?? response.data;
     } catch (error: any) {
@@ -122,13 +189,22 @@ export class EvolutionGoHttpClient {
   async getInstanceQr(channel: Channel): Promise<{
     qrCode?: string;
     code?: string;
+    pairingCode?: string;
   }> {
+    const config = this.config(channel);
     try {
-      const response = await this.createClient(channel).get('/instance/qr');
+      const response = this.isV2(config)
+        ? await this.createClient(channel, true).get(
+            `/instance/connect/${encodeURIComponent(
+              this.resolveInstanceRef(config),
+            )}`,
+          )
+        : await this.createClient(channel).get('/instance/qr');
       const data = response.data?.data ?? response.data;
       return {
         qrCode: data?.Qrcode || data?.qrcode || data?.qrCode,
         code: data?.Code || data?.code,
+        pairingCode: data?.pairingCode,
       };
     } catch (error: any) {
       this.logError('/instance/qr', error);
@@ -137,6 +213,26 @@ export class EvolutionGoHttpClient {
   }
 
   async configureWebhook(channel: Channel, webhookUrl: string): Promise<any> {
+    const config = this.config(channel);
+    if (this.isV2(config)) {
+      try {
+        const response = await this.createClient(channel, true).post(
+          `/webhook/set/${encodeURIComponent(this.resolveInstanceRef(config))}`,
+          {
+            enabled: true,
+            url: webhookUrl,
+            webhookByEvents: true,
+            webhookBase64: true,
+            events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'],
+          },
+        );
+        return response.data;
+      } catch (error: any) {
+        this.logError('/webhook/set/:instance', error);
+        throw error;
+      }
+    }
+
     return this.sendRequest(channel, '/instance/connect', {
       webhookUrl,
       subscribe: ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION'],
@@ -157,8 +253,24 @@ export class EvolutionGoHttpClient {
     externalMessageId: string,
     contactExternalId?: string,
   ): Promise<void> {
+    const config = this.config(channel);
     if (!contactExternalId) {
       throw new Error('Evolution GO requires the chat id to delete a message');
+    }
+    if (this.isV2(config)) {
+      await this.createClient(channel, true).delete(
+        `/chat/deleteMessageForEveryone/${encodeURIComponent(
+          this.resolveInstanceRef(config),
+        )}`,
+        {
+          data: {
+            id: externalMessageId,
+            remoteJid: contactExternalId,
+            fromMe: true,
+          },
+        },
+      );
+      return;
     }
     await this.sendRequest(channel, '/message/delete', {
       chat: contactExternalId,

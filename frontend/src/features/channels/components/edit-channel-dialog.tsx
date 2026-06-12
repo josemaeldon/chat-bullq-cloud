@@ -133,7 +133,8 @@ export function EditChannelDialog({
             </div>
           ))}
 
-          {channel.type !== 'WHATSAPP_EVOLUTION_GO' && (
+          {channel.type !== 'WHATSAPP_EVOLUTION_GO' &&
+            channel.type !== 'WHATSAPP_EVOLUTION_API' && (
             <div className="space-y-1.5">
               <label className={labelCls}>
                 Webhook Secret <span className="text-zinc-400">(opcional)</span>
@@ -194,10 +195,12 @@ function fieldsFor(type: Channel['type']): FieldDef[] {
       { key: 'token', label: 'Token', placeholder: 'Token da instância Zappfy' },
     ];
   }
-  if (type === 'WHATSAPP_EVOLUTION_GO') {
+  if (type === 'WHATSAPP_EVOLUTION_GO' || type === 'WHATSAPP_EVOLUTION_API') {
     return [
-      { key: 'baseUrl', label: 'URL da Evolution GO', placeholder: 'https://evolution.seudominio.com' },
+      { key: 'apiVersion', label: 'Versão da API', placeholder: 'legacy ou v2', optional: true },
+      { key: 'baseUrl', label: 'URL da Evolution', placeholder: 'https://evolution.seudominio.com' },
       { key: 'apiKey', label: 'API Key global', placeholder: 'GLOBAL_API_KEY da instalação' },
+      { key: 'instanceName', label: 'Instance Name', optional: true },
       { key: 'instanceId', label: 'Instance ID' },
       { key: 'instanceToken', label: 'Token da instância', placeholder: 'Detectado automaticamente', optional: true },
     ];

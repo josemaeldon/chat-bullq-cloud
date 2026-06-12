@@ -9,35 +9,48 @@ import {
 
 @Injectable()
 export class EvolutionGoMessageMapper {
-  normalizeInbound(event: any): NormalizedInboundMessage | null {
+  normalizeInbound(
+    event: any,
+    channelType: ChannelType = ChannelType.WHATSAPP_EVOLUTION_GO,
+  ): NormalizedInboundMessage | null {
     const data = event?.data ?? {};
     const info = data?.Info ?? data?.info;
+    const key = data?.key;
     const message = data?.Message ?? data?.message;
-    if (!info || !message || !info.ID) return null;
+    const externalId = String(info?.ID || key?.id || '');
+    if (!message || !externalId) return null;
 
-    const chat = String(info.Chat || info.Sender || '');
+    const chat = String(
+      info?.Chat || info?.Sender || key?.remoteJid || key?.participant || '',
+    );
     if (!chat) return null;
 
-    const isGroup = info.IsGroup === true || chat.endsWith('@g.us');
-    const isEcho = info.IsFromMe === true;
-    const type = this.resolveContentType(info, message);
+    const isGroup = info?.IsGroup === true || chat.endsWith('@g.us');
+    const isEcho = info?.IsFromMe === true || key?.fromMe === true;
+    const type = this.resolveContentType(info ?? data, message);
     const nested = this.findMessageNode(message, type);
     const contextInfo = nested?.contextInfo || message?.contextInfo;
-    const contactName = isEcho ? undefined : info.PushName || undefined;
+    const contactName = isEcho
+      ? undefined
+      : info?.PushName || data?.pushName || undefined;
 
     const normalized: NormalizedInboundMessage = {
-      externalMessageId: String(info.ID),
+      externalMessageId: externalId,
       externalContactId: chat,
       contactName,
       contactPhone: isGroup ? undefined : this.phoneFromJid(chat),
-      channelType: ChannelType.WHATSAPP_EVOLUTION_GO,
-      timestamp: this.toDate(info.Timestamp),
+      channelType,
+      timestamp: this.toDate(info?.Timestamp || data?.messageTimestamp || event?.date_time),
       type,
       content: this.extractContent(data, message, nested, type),
       isForwarded: !!contextInfo?.isForwarded,
       isGroup,
       isEcho,
-      senderName: isGroup ? info.PushName || this.phoneFromJid(info.Sender) : undefined,
+      senderName: isGroup
+        ? info?.PushName ||
+          data?.pushName ||
+          this.phoneFromJid(info?.Sender || key?.participant)
+        : undefined,
       rawPayload: event,
     };
 
@@ -50,6 +63,23 @@ export class EvolutionGoMessageMapper {
 
   normalizeStatuses(event: any): StatusUpdate[] {
     const data = event?.data ?? {};
+    const v2Entries = Array.isArray(data) ? data : [data];
+    const v2Statuses = v2Entries
+      .map((entry) => {
+        const id = entry?.key?.id;
+        const status = this.mapStatus(entry?.status || entry?.update?.status);
+        if (!id || !status) return null;
+        return {
+          externalMessageId: String(id),
+          status,
+          timestamp: this.toDate(
+            entry?.messageTimestamp || event?.date_time,
+          ),
+        };
+      })
+      .filter((entry): entry is StatusUpdate => Boolean(entry));
+    if (v2Statuses.length > 0) return v2Statuses;
+
     const ids = data?.MessageIDs || data?.MessageIds || data?.messageIds || [];
     const status = this.mapStatus(event?.state || data?.Type || data?.type);
     if (!status || !Array.isArray(ids)) return [];
@@ -64,10 +94,23 @@ export class EvolutionGoMessageMapper {
   denormalize(
     message: NormalizedOutboundMessage,
     contactExternalId: string,
+    apiVersion: 'legacy' | 'v2' = 'legacy',
   ): { endpoint: string; payload: Record<string, any> } {
     const number = contactExternalId.replace(/@.+$/, '');
     const replyId = message.replyTo?.externalMessageId;
-    const quoted = replyId ? { quoted: { messageId: replyId } } : {};
+    const quoted =
+      apiVersion === 'v2'
+        ? replyId
+          ? {
+              quoted: {
+                key: { id: replyId },
+                message: { conversation: '' },
+              },
+            }
+          : {}
+        : replyId
+          ? { quoted: { messageId: replyId } }
+          : {};
 
     switch (message.type) {
       case MessageContentType.IMAGE:
@@ -75,19 +118,29 @@ export class EvolutionGoMessageMapper {
       case MessageContentType.VIDEO:
       case MessageContentType.DOCUMENT:
         return {
-          endpoint: '/send/media',
+          endpoint: apiVersion === 'v2' ? '/message/sendMedia' : '/send/media',
           payload: {
             number,
-            url: message.content.mediaUrl,
-            type: message.type.toLowerCase(),
-            caption: message.content.caption || '',
-            filename: message.content.fileName || '',
+            ...(apiVersion === 'v2'
+              ? {
+                  media: message.content.mediaUrl,
+                  mediatype: message.type.toLowerCase(),
+                  mimetype: message.content.mimeType,
+                  caption: message.content.caption || '',
+                  fileName: message.content.fileName || '',
+                }
+              : {
+                  url: message.content.mediaUrl,
+                  type: message.type.toLowerCase(),
+                  caption: message.content.caption || '',
+                  filename: message.content.fileName || '',
+                }),
             ...quoted,
           },
         };
       case MessageContentType.STICKER:
         return {
-          endpoint: '/send/sticker',
+          endpoint: apiVersion === 'v2' ? '/message/sendSticker' : '/send/sticker',
           payload: {
             number,
             sticker: message.content.mediaUrl,
@@ -96,7 +149,7 @@ export class EvolutionGoMessageMapper {
         };
       case MessageContentType.LOCATION:
         return {
-          endpoint: '/send/location',
+          endpoint: apiVersion === 'v2' ? '/message/sendLocation' : '/send/location',
           payload: {
             number,
             name: message.content.text || '',
@@ -107,17 +160,26 @@ export class EvolutionGoMessageMapper {
         };
       case MessageContentType.REACTION:
         return {
-          endpoint: '/message/react',
+          endpoint: apiVersion === 'v2' ? '/message/sendReaction' : '/message/react',
           payload: {
             number,
-            id: message.content.reaction?.targetMessageId,
-            reaction: message.content.reaction?.emoji,
-            fromMe: true,
+            ...(apiVersion === 'v2'
+              ? {
+                  reactionMessage: {
+                    key: { id: message.content.reaction?.targetMessageId },
+                    reaction: message.content.reaction?.emoji,
+                  },
+                }
+              : {
+                  id: message.content.reaction?.targetMessageId,
+                  reaction: message.content.reaction?.emoji,
+                  fromMe: true,
+                }),
           },
         };
       default:
         return {
-          endpoint: '/send/text',
+          endpoint: apiVersion === 'v2' ? '/message/sendText' : '/send/text',
           payload: {
             number,
             text: message.content.text || '',
@@ -193,7 +255,12 @@ export class EvolutionGoMessageMapper {
 
     const mimeType = node?.mimetype || node?.mimeType;
     const base64 = data?.base64 || message?.base64;
-    const providerMediaUrl = data?.mediaUrl || message?.mediaUrl;
+    const providerMediaUrl =
+      data?.mediaUrl ||
+      message?.mediaUrl ||
+      node?.mediaUrl ||
+      node?.url ||
+      node?.URL;
     const mediaUrl = providerMediaUrl ||
       (base64 ? `data:${mimeType || 'application/octet-stream'};base64,${base64}` : undefined);
 

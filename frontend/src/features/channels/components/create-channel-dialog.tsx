@@ -18,6 +18,13 @@ const channelTypes: { value: ChannelType; label: string; icon: React.ElementType
     description: 'Evolution GO — API em Go, webhook e múltiplas instâncias',
   },
   {
+    value: 'WHATSAPP_EVOLUTION_API',
+    label: 'WhatsApp (Evolution API v2)',
+    icon: EvolutionGoIcon,
+    color: 'bg-zinc-50 dark:bg-zinc-800',
+    description: 'Evolution API v2 oficial — endpoints /instance, /webhook e /message',
+  },
+  {
     value: 'WHATSAPP_ZAPPFY',
     label: 'WhatsApp (Zappfy)',
     icon: ZappfyIcon,
@@ -59,6 +66,7 @@ const evolutionGoSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   baseUrl: z.string().url('Informe uma URL válida'),
   apiKey: z.string().min(1, 'API Key é obrigatória'),
+  apiVersion: z.enum(['legacy', 'v2']),
   provisionMode: z.enum(['create', 'existing']),
   instanceName: z.string().optional(),
   instanceId: z.string().optional(),
@@ -77,10 +85,16 @@ const evolutionGoSchema = z.object({
     });
   }
   if (data.provisionMode === 'existing' && !data.instanceId?.trim()) {
+    if (data.apiVersion === 'v2' && data.instanceName?.trim()) {
+      return;
+    }
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['instanceId'],
-      message: 'Instance ID é obrigatório',
+      message:
+        data.apiVersion === 'v2'
+          ? 'Informe Instance ID ou Instance Name'
+          : 'Instance ID é obrigatório',
     });
   }
   const proxyValues = [
@@ -147,6 +161,7 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
       name: '',
       baseUrl: '',
       apiKey: '',
+      apiVersion: 'legacy',
       provisionMode: 'create',
       instanceName: '',
       instanceId: '',
@@ -173,6 +188,13 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
 
   const handleTypeSelect = (type: ChannelType) => {
     setSelectedType(type);
+    if (type === 'WHATSAPP_EVOLUTION_API') {
+      evolutionGoForm.setValue('apiVersion', 'v2');
+      evolutionGoForm.setValue('provisionMode', 'create');
+    } else if (type === 'WHATSAPP_EVOLUTION_GO') {
+      evolutionGoForm.setValue('apiVersion', 'legacy');
+      evolutionGoForm.setValue('provisionMode', 'create');
+    }
     setStep('config');
   };
 
@@ -213,9 +235,10 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
     );
 
   const onSubmitEvolutionGo = (data: EvolutionGoFormData) =>
-    submitChannel('WHATSAPP_EVOLUTION_GO', data.name, {
+    submitChannel(selectedType === 'WHATSAPP_EVOLUTION_API' ? 'WHATSAPP_EVOLUTION_API' : 'WHATSAPP_EVOLUTION_GO', data.name, {
       baseUrl: data.baseUrl.replace(/\/+$/, ''),
       apiKey: data.apiKey,
+      apiVersion: data.apiVersion,
       provisionMode: data.provisionMode,
       instanceName: data.instanceName || undefined,
       instanceId: data.instanceId || undefined,
@@ -256,6 +279,7 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
   const titleMap: Record<string, string> = {
     WHATSAPP_ZAPPFY: 'Configurar Zappfy',
     WHATSAPP_EVOLUTION_GO: 'Configurar Evolution GO',
+    WHATSAPP_EVOLUTION_API: 'Configurar Evolution API v2',
     WHATSAPP_OFFICIAL: 'Configurar WhatsApp Official',
     INSTAGRAM: 'Configurar Instagram',
   };
@@ -310,10 +334,10 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
             <WebhookUrl url={`${apiBaseUrl}/webhooks/WHATSAPP_OFFICIAL`} copied={copied} onCopy={() => handleCopyWebhook('WHATSAPP_OFFICIAL')} />
             <FormFooter isLoading={isLoading} onBack={() => setStep('type')} />
           </form>
-        ) : selectedType === 'WHATSAPP_EVOLUTION_GO' ? (
+        ) : selectedType === 'WHATSAPP_EVOLUTION_GO' || selectedType === 'WHATSAPP_EVOLUTION_API' ? (
           <form onSubmit={evolutionGoForm.handleSubmit(onSubmitEvolutionGo)} className="mt-6 space-y-4">
             <Field label="Nome do canal" placeholder="Ex: WhatsApp Evolution" error={evolutionGoForm.formState.errors.name?.message} {...evolutionGoForm.register('name')} />
-            <Field label="URL da Evolution GO" placeholder="https://evolution.seudominio.com" error={evolutionGoForm.formState.errors.baseUrl?.message} {...evolutionGoForm.register('baseUrl')} />
+            <Field label={evolutionGoForm.watch('apiVersion') === 'v2' ? 'URL da Evolution API v2' : 'URL da Evolution GO'} placeholder="https://evolution.seudominio.com" error={evolutionGoForm.formState.errors.baseUrl?.message} {...evolutionGoForm.register('baseUrl')} />
             <Field label="API Key global" placeholder="GLOBAL_API_KEY da instalação" error={evolutionGoForm.formState.errors.apiKey?.message} {...evolutionGoForm.register('apiKey')} />
             <div className="grid grid-cols-2 gap-2 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
               <ModeButton
@@ -350,13 +374,33 @@ export function CreateChannelDialog({ open, onClose, onCreated }: CreateChannelD
               </>
             ) : (
               <>
-                <Field label="Instance ID" placeholder="ID da instância na Evolution GO" error={evolutionGoForm.formState.errors.instanceId?.message} {...evolutionGoForm.register('instanceId')} />
+                <Field
+                  label={evolutionGoForm.watch('apiVersion') === 'v2' ? 'Instance Name' : 'Instance ID'}
+                  placeholder={evolutionGoForm.watch('apiVersion') === 'v2' ? 'Nome da instância na Evolution API v2' : 'ID da instância na Evolution GO'}
+                  error={evolutionGoForm.watch('apiVersion') === 'v2' ? evolutionGoForm.formState.errors.instanceName?.message : evolutionGoForm.formState.errors.instanceId?.message}
+                  {...(evolutionGoForm.watch('apiVersion') === 'v2' ? evolutionGoForm.register('instanceName') : evolutionGoForm.register('instanceId'))}
+                />
+                {evolutionGoForm.watch('apiVersion') === 'v2' && (
+                  <Field label="Instance ID" placeholder="Opcional — ajuda a localizar a instância" optional {...evolutionGoForm.register('instanceId')} />
+                )}
                 <Field label="Token da instância" placeholder="Detectado automaticamente se ficar vazio" optional {...evolutionGoForm.register('instanceToken')} />
               </>
             )}
-            <WebhookUrl url={`${apiBaseUrl}/webhooks/WHATSAPP_EVOLUTION_GO`} copied={copied} onCopy={() => handleCopyWebhook('WHATSAPP_EVOLUTION_GO')} />
+            <WebhookUrl
+              url={`${apiBaseUrl}/webhooks/${selectedType === 'WHATSAPP_EVOLUTION_API' ? 'WHATSAPP_EVOLUTION_API' : 'WHATSAPP_EVOLUTION_GO'}`}
+              copied={copied}
+              onCopy={() =>
+                handleCopyWebhook(
+                  selectedType === 'WHATSAPP_EVOLUTION_API'
+                    ? 'WHATSAPP_EVOLUTION_API'
+                    : 'WHATSAPP_EVOLUTION_GO',
+                )
+              }
+            />
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              A instância, as credenciais e os eventos do webhook são configurados automaticamente.
+              {evolutionGoForm.watch('apiVersion') === 'v2'
+                ? 'A conexão usa os endpoints oficiais da Evolution API v2 conforme a documentação.'
+                : 'A instância, as credenciais e os eventos do webhook são configurados automaticamente.'}
             </p>
             <FormFooter isLoading={isLoading} onBack={() => setStep('type')} />
           </form>

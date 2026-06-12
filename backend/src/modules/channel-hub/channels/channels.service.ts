@@ -26,6 +26,13 @@ import {
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
 
+  private isEvolutionType(type: ChannelType) {
+    return (
+      type === ChannelType.WHATSAPP_EVOLUTION_GO ||
+      type === ChannelType.WHATSAPP_EVOLUTION_API
+    );
+  }
+
   constructor(
     private readonly repository: ChannelsRepository,
     private readonly adapterRegistry: ChannelAdapterRegistry,
@@ -44,7 +51,7 @@ export class ChannelsService {
     creator?: { userOrganizationId: string; role: OrgRole },
   ) {
     const providerConfig =
-      dto.type === ChannelType.WHATSAPP_EVOLUTION_GO
+      this.isEvolutionType(dto.type)
         ? await this.prepareEvolutionGoConfig(dto.name, dto.config)
         : dto.config;
 
@@ -102,9 +109,9 @@ export class ChannelsService {
       );
     }
 
-    if (dto.type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+    if (this.isEvolutionType(dto.type)) {
       this.configureEvolutionGoWebhook(channel.id).catch((err) =>
-        this.logger.warn(`Evolution GO webhook config failed: ${err.message}`),
+        this.logger.warn(`Evolution webhook config failed: ${err.message}`),
       );
     }
 
@@ -172,18 +179,30 @@ export class ChannelsService {
         apiKey: String(config.apiKey),
         name: String(config.instanceName || channelName),
         token: instanceToken,
+        apiVersion: config.apiVersion === 'v2' ? 'v2' : 'legacy',
         proxy,
       });
       const instanceId = instance?.id || instance?.instanceId;
-      if (!instanceId) {
+      const instanceName =
+        instance?.name ||
+        instance?.instanceName ||
+        config.instanceName ||
+        channelName;
+      if (!instanceId && !instanceName) {
         throw new Error('A Evolution GO não retornou o ID da nova instância');
       }
       return {
         baseUrl: String(config.baseUrl).replace(/\/+$/, ''),
         apiKey: String(config.apiKey),
-        instanceId: String(instanceId),
-        instanceToken: String(instance?.token || instanceToken),
-        instanceName: String(instance?.name || config.instanceName || channelName),
+        apiVersion: config.apiVersion === 'v2' ? 'v2' : 'legacy',
+        instanceId: instanceId ? String(instanceId) : String(instanceName),
+        instanceToken: String(
+          instance?.token ||
+            instance?.apikey ||
+            instance?.integration?.token ||
+            instanceToken,
+        ),
+        instanceName: String(instanceName),
         provisionedByChatBullq: true,
         ...(proxy ? { proxy } : {}),
       };
@@ -228,15 +247,19 @@ export class ChannelsService {
         );
       }
 
-      if (type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+      if (this.isEvolutionType(type)) {
         if (!config.baseUrl || !config.apiKey || !config.instanceId) {
           throw new BadRequestException(
-            'Evolution GO exige URL da API, API Key global e Instance ID',
+            'Evolution exige URL da API, API Key global e Instance ID',
           );
         }
         if (!config.instanceToken) {
           const info = await this.evolutionGoHttpClient.getInstanceInfo(channel);
-          const instanceToken = info?.token || info?.Token;
+          const instanceToken =
+            info?.token ||
+            info?.Token ||
+            info?.apikey ||
+            info?.integration?.token;
           if (!instanceToken) {
             throw new BadRequestException(
               'A Evolution GO não retornou o token da instância informada',
@@ -246,7 +269,13 @@ export class ChannelsService {
             config: {
               ...config,
               instanceToken: String(instanceToken),
-              instanceName: info?.name || info?.Name || undefined,
+              instanceName:
+                info?.name ||
+                info?.Name ||
+                info?.instanceName ||
+                config.instanceName ||
+                undefined,
+              instanceId: info?.id || info?.instanceId || config.instanceId,
             },
           });
         }
@@ -257,11 +286,11 @@ export class ChannelsService {
       this.logger.warn(
         `enrichProviderIds failed for channel ${channelId}: ${err.message}`,
       );
-      if (type === ChannelType.WHATSAPP_EVOLUTION_GO) {
+      if (this.isEvolutionType(type)) {
         throw new BadRequestException(
           err.response?.data?.message ||
             err.message ||
-            'Não foi possível localizar a instância na Evolution GO',
+            'Não foi possível localizar a instância na Evolution',
         );
       }
       return null;
@@ -289,9 +318,10 @@ export class ChannelsService {
       this.logger.warn('APP_URL not set — skipping Evolution GO webhook setup');
       return;
     }
-    const webhookUrl = `${appUrl.replace(/\/+$/, '')}/api/v1/webhooks/WHATSAPP_EVOLUTION_GO`;
+    const webhookType = channel.type;
+    const webhookUrl = `${appUrl.replace(/\/+$/, '')}/api/v1/webhooks/${webhookType}`;
     await this.evolutionGoHttpClient.configureWebhook(channel, webhookUrl);
-    this.logger.log(`Evolution GO webhook configured: ${webhookUrl}`);
+    this.logger.log(`Evolution webhook configured: ${webhookUrl}`);
   }
 
   private async subscribeWaOfficialApp(channelId: string): Promise<void> {
@@ -350,17 +380,17 @@ export class ChannelsService {
       return this.repository.findById(id);
     }
     let updated = await this.repository.update(id, rest);
-    if (updated.type === ChannelType.WHATSAPP_EVOLUTION_GO && rest.config) {
+    if (this.isEvolutionType(updated.type) && rest.config) {
       const config = updated.config as Record<string, any>;
       const { instanceToken: _oldToken, ...configWithoutToken } = config;
       updated = await this.repository.update(id, {
         config: configWithoutToken,
       });
       updated =
-        (await this.enrichProviderIds(id, ChannelType.WHATSAPP_EVOLUTION_GO)) ??
+        (await this.enrichProviderIds(id, updated.type)) ??
         updated;
       this.configureEvolutionGoWebhook(id).catch((err) =>
-        this.logger.warn(`Evolution GO webhook refresh failed: ${err.message}`),
+        this.logger.warn(`Evolution webhook refresh failed: ${err.message}`),
       );
     }
     return updated;
@@ -483,18 +513,29 @@ export class ChannelsService {
           };
         }
 
-        case ChannelType.WHATSAPP_EVOLUTION_GO: {
+        case ChannelType.WHATSAPP_EVOLUTION_GO:
+        case ChannelType.WHATSAPP_EVOLUTION_API: {
           const status =
             await this.evolutionGoHttpClient.getInstanceStatus(channel);
+          const config = (channel.config as Record<string, any>) || {};
           const connected =
-            status?.Connected === true && status?.LoggedIn === true;
+            config.apiVersion === 'v2'
+              ? String(status?.state || status?.status || '').toLowerCase() === 'open'
+              : status?.Connected === true && status?.LoggedIn === true;
           return {
             success: connected,
             status: connected ? 'connected' : 'disconnected',
             data: {
-              connected: status?.Connected ?? false,
-              loggedIn: status?.LoggedIn ?? false,
-              name: status?.Name,
+              connected:
+                config.apiVersion === 'v2'
+                  ? connected
+                  : (status?.Connected ?? false),
+              loggedIn:
+                config.apiVersion === 'v2'
+                  ? connected
+                  : (status?.LoggedIn ?? false),
+              name: status?.Name || status?.instanceName || config.instanceName,
+              state: status?.state,
             },
             ...(connected
               ? {}
@@ -529,11 +570,16 @@ export class ChannelsService {
 
   async getEvolutionGoQr(id: string, organizationId: string) {
     const channel = await this.findOne(id, organizationId);
-    if (channel.type !== ChannelType.WHATSAPP_EVOLUTION_GO) {
-      throw new BadRequestException('Este canal não usa Evolution GO');
+    if (!this.isEvolutionType(channel.type)) {
+      throw new BadRequestException('Este canal não usa Evolution');
     }
     const status = await this.evolutionGoHttpClient.getInstanceStatus(channel);
-    if (status?.Connected === true && status?.LoggedIn === true) {
+    const config = (channel.config as Record<string, any>) || {};
+    const connected =
+      config.apiVersion === 'v2'
+        ? String(status?.state || status?.status || '').toLowerCase() === 'open'
+        : status?.Connected === true && status?.LoggedIn === true;
+    if (connected) {
       return { connected: true, qrCode: null, code: null };
     }
     const qr = await this.evolutionGoHttpClient.getInstanceQr(channel);

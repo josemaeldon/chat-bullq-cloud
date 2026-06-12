@@ -10,6 +10,7 @@ import { useOrgId } from '@/hooks/use-org-query-key';
 const channelIcons: Record<string, React.ElementType> = {
   WHATSAPP_ZAPPFY: ZappfyIcon,
   WHATSAPP_EVOLUTION_GO: EvolutionGoIcon,
+  WHATSAPP_EVOLUTION_API: EvolutionGoIcon,
   WHATSAPP_OFFICIAL: MetaIcon,
   INSTAGRAM: InstagramIcon,
 };
@@ -17,6 +18,7 @@ const channelIcons: Record<string, React.ElementType> = {
 const channelLabels: Record<string, string> = {
   WHATSAPP_ZAPPFY: 'WhatsApp',
   WHATSAPP_EVOLUTION_GO: 'WhatsApp Evolution GO',
+  WHATSAPP_EVOLUTION_API: 'WhatsApp Evolution API v2',
   WHATSAPP_OFFICIAL: 'WhatsApp Oficial',
   INSTAGRAM: 'Instagram',
 };
@@ -73,7 +75,9 @@ export default function ConexoesPage() {
                   <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                     {ch.name}
                   </p>
-                  <p className="text-xs text-zinc-400">{channelLabels[ch.type] ?? ch.type}</p>
+                  <p className="text-xs text-zinc-400">
+                    {channelLabels[ch.type] ?? ch.type}
+                  </p>
                   <span
                     className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${
                       ch.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'
