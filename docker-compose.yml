@@ -1,24 +1,42 @@
+# Chat BullQ - stack Docker Compose
+#
+# Antes de subir:
+#   1. copie `.env.example` para `.env`;
+#   2. altere todos os valores marcados com CHANGE_ME;
+#   3. em producao, configure FRONTEND_URL, API_URL e APP_URL com HTTPS.
+#
+# O backend executa `prisma migrate deploy` automaticamente ao iniciar.
+
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: bravy
-      POSTGRES_PASSWORD: bravy123
-      POSTGRES_DB: chat_bullq
+      # ALTERE em producao. Estes valores precisam corresponder ao DATABASE_URL.
+      POSTGRES_USER: ${POSTGRES_USER:-chat_bullq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DATABASE_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-chat_bullq}
     ports:
-      - '5432:5432'
+      # Para nao expor o banco publicamente, remova `ports` em producao.
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U bravy -d chat_bullq']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
-      - '6379:6379'
+      # Para nao expor o Redis publicamente, remova `ports` em producao.
+      - '${REDIS_PUBLIC_PORT:-6379}:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -27,13 +45,15 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
-      MINIO_ROOT_USER: bravy
-      MINIO_ROOT_PASSWORD: bravy123minio
+      # ALTERE em producao. A senha deve ter pelo menos 8 caracteres.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-chat_bullq}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_MINIO_PASSWORD}
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio_data:/data
 
@@ -41,23 +61,51 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://bravy:bravy123@postgres:5432/chat_bullq
-      JWT_SECRET: change-me-generate-with-node-e-require-crypto-randomBytes-64-toString-hex
-      JWT_EXPIRATION: 15m
-      JWT_REFRESH_SECRET: change-me-generate-another-different-one
-      JWT_REFRESH_EXPIRATION: 7d
+
+      # ALTERE se mudar usuario, senha ou banco do PostgreSQL.
+      # Senhas com caracteres especiais precisam estar codificadas para URL.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://chat_bullq:CHANGE_ME_DATABASE_PASSWORD@postgres:5432/chat_bullq}
+
+      # ALTERE obrigatoriamente. Use dois segredos longos e diferentes.
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-CHANGE_ME_JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+
+      # Nomes internos da rede Docker. Normalmente nao devem ser alterados.
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      CORS_ORIGIN: http://localhost:3000
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # ALTERE para a URL publica do frontend, sem barra final.
+      CORS_ORIGIN: ${FRONTEND_URL:-http://localhost:3000}
+
+      # ALTERE para a URL publica do backend, sem /api/v1 e sem barra final.
+      # Evolution GO e outros provedores usam este endereco para webhooks.
+      APP_URL: ${APP_URL:-http://localhost:3001}
+
+      # Uploads locais ficam no volume backend_uploads.
+      UPLOADS_DIR: /app/uploads
+
+      # MinIO esta disponivel na stack para evolucao do armazenamento.
+      # O upload padrao atual continua persistido em backend_uploads.
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
-      MINIO_ACCESS_KEY: bravy
-      MINIO_SECRET_KEY: bravy123minio
-      MINIO_BUCKET: chat-bullq
-      OPENAI_API_KEY: sk-proj-your-key-here
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-chat_bullq}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_MINIO_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-chat-bullq}
+
+      # Opcional, mas necessario para recursos de IA e embeddings.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Opcionais: notificacoes push.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,21 +114,29 @@ services:
       minio:
         condition: service_started
     ports:
-      - '3001:3001'
+      - '${BACKEND_PORT:-3001}:3001'
+    volumes:
+      - backend_uploads:/app/uploads
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+        # ALTERE para a URL publica da API, incluindo /api/v1.
+        # Esta variavel entra no BUILD; ao muda-la, execute `docker compose build frontend`.
+        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:3001/api/v1}
+    restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      # Mantido tambem em runtime por clareza, mas o valor principal e o do build acima.
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:3001/api/v1}
     depends_on:
       - backend
     ports:
-      - '3000:3000'
+      - '${FRONTEND_PORT:-3000}:3000'
 
 volumes:
+  # Nao use `docker compose down -v` em producao: ele remove estes dados.
   postgres_data:
   minio_data:
+  backend_uploads:
