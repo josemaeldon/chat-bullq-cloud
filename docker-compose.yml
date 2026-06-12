@@ -1,3 +1,5 @@
+version: '3.8'
+
 # Chat BullQ - stack Docker Compose
 #
 # Antes de subir:
@@ -10,72 +12,85 @@
 services:
   postgres:
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
       # ALTERE em producao. Estes valores precisam corresponder ao DATABASE_URL.
-      POSTGRES_USER: ${POSTGRES_USER:-chat_bullq}
-      POSTGRES_PASSWORD: CHANGE_ME_DATABASE_PASSWORD
-      POSTGRES_DB: ${POSTGRES_DB:-chat_bullq}
+      POSTGRES_USER: chat_bullq
+      POSTGRES_PASSWORD: 6Tg9xN2mQ8vK4pZ7rL5bH3sY1dA0cF
+      POSTGRES_DB: chat_bullq
     # Disponivel somente na rede exclusiva da stack como postgres:5432.
     expose:
       - '5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chat_bullq_internal
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+          'pg_isready -U "chat_bullq" -d "chat_bullq"',
         ]
       interval: 10s
       timeout: 5s
       retries: 10
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
 
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
     # Disponivel somente na rede exclusiva da stack como redis:6379.
     expose:
       - '6379'
+    networks:
+      - chat_bullq_internal
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 10
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
 
   minio:
     image: minio/minio:latest
-    restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
       # ALTERE em producao. A senha deve ter pelo menos 8 caracteres.
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-chat_bullq}
-      MINIO_ROOT_PASSWORD: CHANGE_ME_MINIO_PASSWORD
+      MINIO_ROOT_USER: chat_bullq
+      MINIO_ROOT_PASSWORD: M9pL2xQ7vR4sT8yH3nK6bZ1cD5aF0g
     # API e console ficam restritos a rede Docker da stack.
     expose:
       - '9000'
       - '9001'
     volumes:
       - minio_data:/data
+    networks:
+      - chat_bullq_internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
 
   backend:
     # ALTERE BACKEND_IMAGE apenas ao usar fork, outro registry ou tag fixa.
-    image: ${BACKEND_IMAGE:-ghcr.io/josemaeldon/chat-bullq-cloud-backend:latest}
-    pull_policy: always
-    restart: unless-stopped
+    image: ghcr.io/josemaeldon/chat-bullq-cloud-backend:latest
     environment:
       NODE_ENV: production
       PORT: 3001
 
       # ALTERE se mudar usuario, senha ou banco do PostgreSQL.
       # Senhas com caracteres especiais precisam estar codificadas para URL.
-      DATABASE_URL: postgresql://chat_bullq:CHANGE_ME_DATABASE_PASSWORD@postgres:5432/chat_bullq
+      DATABASE_URL: postgresql://chat_bullq:6Tg9xN2mQ8vK4pZ7rL5bH3sY1dA0cF@postgres:5432/chat_bullq
 
       # ALTERE obrigatoriamente. Use dois segredos longos e diferentes.
-      JWT_SECRET: CHANGE_ME_JWT_SECRET
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
-      JWT_REFRESH_SECRET: CHANGE_ME_JWT_REFRESH_SECRET
-      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      JWT_SECRET: qJ8vN4mS7xD2pL9tR5cY1hB6wK3zA0fG
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_SECRET: zR6mT1xQ9vB4pK8yH2cN7sL5dF0aG3jW
+      JWT_REFRESH_EXPIRATION: 7d
 
       # Nomes internos da rede Docker. Normalmente nao devem ser alterados.
       REDIS_HOST: redis
@@ -83,11 +98,11 @@ services:
       REDIS_PASSWORD: ''
 
       # O navegador acessa tudo pelo frontend; esta e a unica origem publica.
-      CORS_ORIGIN: ${PUBLIC_URL:-http://localhost:3000}
+      CORS_ORIGIN: https://chatgo.cloudbr.app
 
       # URL externa apenas para callbacks/webhooks. As requisicoes normais
       # frontend -> backend trafegam pela rede interna, sem dominio.
-      APP_URL: ${PUBLIC_URL:-http://localhost:3000}
+      APP_URL: https://chatgo.cloudbr.app
 
       # Uploads locais ficam no volume backend_uploads.
       UPLOADS_DIR: /app/uploads
@@ -96,25 +111,25 @@ services:
       # O upload padrao atual continua persistido em backend_uploads.
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-chat_bullq}
-      MINIO_SECRET_KEY: CHANGE_ME_MINIO_PASSWORD
-      MINIO_BUCKET: ${MINIO_BUCKET:-chat-bullq}
+      MINIO_ACCESS_KEY: chat_bullq
+      MINIO_SECRET_KEY: M9pL2xQ7vR4sT8yH3nK6bZ1cD5aF0g
+      MINIO_BUCKET: chat-bullq
 
       # Opcional, mas necessario para recursos de IA e embeddings.
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ''
 
       # Recuperacao de senha por e-mail. Configure todos em producao.
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-}
+      SMTP_HOST: ''
+      SMTP_PORT: 587
+      SMTP_SECURE: 'false'
+      SMTP_USER: ''
       SMTP_PASSWORD: CHANGE_ME_SMTP_PASSWORD
-      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM: ''
 
       # Opcionais: notificacoes push.
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      VAPID_PUBLIC_KEY: ''
+      VAPID_PRIVATE_KEY: ''
+      VAPID_SUBJECT: mailto:admin@example.com
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,19 +142,37 @@ services:
       - '3001'
     volumes:
       - backend_uploads:/app/uploads
+    networks:
+      - chat_bullq_internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
 
   frontend:
     # ALTERE FRONTEND_IMAGE apenas ao usar fork, outro registry ou tag fixa.
-    image: ${FRONTEND_IMAGE:-ghcr.io/josemaeldon/chat-bullq-cloud-frontend:latest}
-    pull_policy: always
-    restart: unless-stopped
+    image: ghcr.io/josemaeldon/chat-bullq-cloud-frontend:latest
     environment:
       NEXT_PUBLIC_API_URL: /api/v1
       INTERNAL_API_URL: http://backend:3001
     depends_on:
       - backend
-    ports:
-      - '${FRONTEND_PORT:-3000}:3000'
+    networks:
+      - chat_bullq_internal
+      - luzianet
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - traefik.enable=1
+        - traefik.http.routers.chat-bullq.rule=Host(`chatgo.cloudbr.app`)
+        - traefik.http.routers.chat-bullq.entrypoints=websecure
+        - traefik.http.routers.chat-bullq.priority=1
+        - traefik.http.routers.chat-bullq.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.chat-bullq.service=chat-bullq
+        - traefik.http.services.chat-bullq.loadbalancer.server.port=3000
+        - traefik.http.services.chat-bullq.loadbalancer.passHostHeader=true
 
 volumes:
   # Nao use `docker compose down -v` em producao: ele remove estes dados.
@@ -148,8 +181,7 @@ volumes:
   backend_uploads:
 
 networks:
-  default:
-    # Rede exclusiva da aplicacao. Outros containers nao entram nela
-    # automaticamente, mesmo que existam no mesmo servidor Portainer.
-    name: ${DOCKER_NETWORK_NAME:-chat-bullq-cloud-internal}
-    driver: bridge
+  chat_bullq_internal:
+    driver: overlay
+  luzianet:
+    external: true
