@@ -122,6 +122,22 @@ Esse tráfego usa a rede privada do Docker. `PUBLIC_URL` também é usada para
 montar URLs externas de uploads e webhooks, pois esses endereços precisam ser
 acessíveis pelos navegadores e provedores.
 
+### Rede exclusiva no Portainer
+
+A stack cria a rede Docker `chat-bullq-cloud-internal`. PostgreSQL, Redis,
+MinIO, backend e frontend ficam separados dos containers de outros projetos.
+Somente a porta do frontend é publicada no host:
+
+```dotenv
+DOCKER_NETWORK_NAME=chat-bullq-cloud-internal
+FRONTEND_PORT=3000
+```
+
+PostgreSQL, Redis, MinIO e backend não publicam portas. Eles são acessados
+somente dentro dessa rede como `postgres:5432`, `redis:6379`, `minio:9000` e
+`backend:3001`. A rede permite conexões de saída para Evolution GO, SMTP,
+OpenAI e outros provedores externos.
+
 ### 6. Configurar recursos opcionais
 
 Para habilitar recursos de IA:
@@ -212,12 +228,13 @@ workspace recebe o papel `OWNER` da organização.
 | `JWT_REFRESH_SECRET` | Sim | Assinatura dos tokens de renovação. |
 | `MINIO_ROOT_PASSWORD` | Sim | Proteção do armazenamento MinIO. |
 | `PUBLIC_URL` | Em produção | Único domínio do painel, API, uploads e webhooks. |
+| `DOCKER_NETWORK_NAME` | Opcional | Nome da rede Docker exclusiva da stack. |
 | `BACKEND_IMAGE` | Opcional | Imagem/tag do backend no GHCR. |
 | `FRONTEND_IMAGE` | Opcional | Imagem/tag do frontend no GHCR. |
 | `OPENAI_API_KEY` | Para IA | Embeddings e recursos baseados em OpenAI. |
 | `SMTP_*` | Para recuperação de senha | Envio do link de redefinição. |
 | `VAPID_*` | Para push | Notificações do navegador. |
-| Portas públicas | Conforme ambiente | Evitar conflitos e exposição desnecessária. |
+| `FRONTEND_PORT` | Conforme ambiente | Única porta publicada no host. |
 
 O `docker-compose.yml` contém comentários ao lado de cada ponto configurável.
 
@@ -233,9 +250,8 @@ frontend:3000      -> backend:3001 pela rede Docker
 Recomendações:
 
 - Use HTTPS obrigatório.
-- Não exponha PostgreSQL e Redis à internet; remova as respectivas seções
-  `ports` do compose.
-- Restrinja as portas do MinIO ou publique-o atrás do proxy.
+- Não conecte outros containers à rede `chat-bullq-cloud-internal`.
+- PostgreSQL, Redis, MinIO e backend já estão sem portas publicadas.
 - Use senhas únicas e um gerenciador de segredos.
 - Faça backup dos volumes antes de atualizar.
 - Defina `PUBLIC_URL` com uma URL acessível pela Evolution GO.

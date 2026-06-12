@@ -17,9 +17,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-chat_bullq}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DATABASE_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-chat_bullq}
-    ports:
-      # Para nao expor o banco publicamente, remova `ports` em producao.
-      - '${POSTGRES_PORT:-5432}:5432'
+    # Disponivel somente na rede exclusiva da stack como postgres:5432.
+    expose:
+      - '5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -35,9 +35,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      # Para nao expor o Redis publicamente, remova `ports` em producao.
-      - '${REDIS_PUBLIC_PORT:-6379}:6379'
+    # Disponivel somente na rede exclusiva da stack como redis:6379.
+    expose:
+      - '6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -52,9 +52,10 @@ services:
       # ALTERE em producao. A senha deve ter pelo menos 8 caracteres.
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-chat_bullq}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_MINIO_PASSWORD}
-    ports:
-      - '${MINIO_API_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    # API e console ficam restritos a rede Docker da stack.
+    expose:
+      - '9000'
+      - '9001'
     volumes:
       - minio_data:/data
 
@@ -146,3 +147,10 @@ volumes:
   postgres_data:
   minio_data:
   backend_uploads:
+
+networks:
+  default:
+    # Rede exclusiva da aplicacao. Outros containers nao entram nela
+    # automaticamente, mesmo que existam no mesmo servidor Portainer.
+    name: ${DOCKER_NETWORK_NAME:-chat-bullq-cloud-internal}
+    driver: bridge
