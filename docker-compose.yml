@@ -5,6 +5,7 @@
 #   2. altere todos os valores marcados com CHANGE_ME;
 #   3. em producao, configure PUBLIC_URL com HTTPS.
 #
+# As imagens sao publicadas automaticamente no GHCR pelo GitHub Actions.
 # O backend executa `prisma migrate deploy` automaticamente ao iniciar.
 
 services:
@@ -58,9 +59,9 @@ services:
       - minio_data:/data
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # ALTERE BACKEND_IMAGE apenas ao usar fork, outro registry ou tag fixa.
+    image: ${BACKEND_IMAGE:-ghcr.io/josemaeldon/chat-bullq-cloud-backend:latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -128,14 +129,9 @@ services:
       - backend_uploads:/app/uploads
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        # O navegador usa a mesma origem do frontend.
-        NEXT_PUBLIC_API_URL: /api/v1
-        # Destino privado usado pelos rewrites do servidor Next.js.
-        INTERNAL_API_URL: http://backend:3001
+    # ALTERE FRONTEND_IMAGE apenas ao usar fork, outro registry ou tag fixa.
+    image: ${FRONTEND_IMAGE:-ghcr.io/josemaeldon/chat-bullq-cloud-frontend:latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: /api/v1

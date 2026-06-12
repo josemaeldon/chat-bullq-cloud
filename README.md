@@ -26,6 +26,26 @@ docker compose version
 
 ## Instalação com Docker
 
+### Instalação automática
+
+O instalador cria o `.env`, gera senhas e segredos aleatórios, baixa as imagens
+do GHCR e inicia a stack:
+
+```bash
+./scripts/install-stack.sh https://app.seudominio.com
+```
+
+Para pacotes GHCR privados:
+
+```bash
+GHCR_USER=seu_usuario \
+GHCR_TOKEN=seu_token_read_packages \
+./scripts/install-stack.sh https://app.seudominio.com
+```
+
+O script preserva um `.env` existente. SMTP, OpenAI e VAPID dependem de
+provedores externos e devem ser preenchidos depois quando necessários.
+
 ### 1. Clonar o repositório
 
 ```bash
@@ -141,10 +161,18 @@ docker compose config | grep CHANGE_ME
 
 O segundo comando não deve retornar nada.
 
-### 8. Construir e iniciar
+### 8. Baixar as imagens e iniciar
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
+```
+
+Por padrão, a stack usa:
+
+```text
+ghcr.io/josemaeldon/chat-bullq-cloud-backend:latest
+ghcr.io/josemaeldon/chat-bullq-cloud-frontend:latest
 ```
 
 O container do backend executa automaticamente:
@@ -184,6 +212,8 @@ workspace recebe o papel `OWNER` da organização.
 | `JWT_REFRESH_SECRET` | Sim | Assinatura dos tokens de renovação. |
 | `MINIO_ROOT_PASSWORD` | Sim | Proteção do armazenamento MinIO. |
 | `PUBLIC_URL` | Em produção | Único domínio do painel, API, uploads e webhooks. |
+| `BACKEND_IMAGE` | Opcional | Imagem/tag do backend no GHCR. |
+| `FRONTEND_IMAGE` | Opcional | Imagem/tag do frontend no GHCR. |
 | `OPENAI_API_KEY` | Para IA | Embeddings e recursos baseados em OpenAI. |
 | `SMTP_*` | Para recuperação de senha | Envio do link de redefinição. |
 | `VAPID_*` | Para push | Notificações do navegador. |
@@ -210,6 +240,65 @@ Recomendações:
 - Faça backup dos volumes antes de atualizar.
 - Defina `PUBLIC_URL` com uma URL acessível pela Evolution GO.
 - Não publique a porta `3001`; o compose usa apenas `expose` na rede interna.
+
+## Imagens no GHCR
+
+O workflow [publish-ghcr.yml](./.github/workflows/publish-ghcr.yml) publica
+automaticamente duas imagens, pois frontend e backend executam processos
+diferentes:
+
+```text
+ghcr.io/josemaeldon/chat-bullq-cloud-backend
+ghcr.io/josemaeldon/chat-bullq-cloud-frontend
+```
+
+Ele é executado:
+
+- em todo push na branch `main` que altere frontend, backend ou o workflow;
+- ao criar uma tag começando com `v`, por exemplo `v1.0.0`;
+- manualmente em `Actions > Publish GHCR images > Run workflow`.
+
+Tags publicadas:
+
+- `latest`: commit mais recente da `main`;
+- `v1.0.0`: versão correspondente a uma tag Git;
+- `sha-abcdef0`: tag imutável baseada no commit.
+
+As imagens são geradas somente para `linux/amd64`, com cache, SBOM e atestação
+de procedência. O workflow usa `GITHUB_TOKEN`; não é necessário criar segredo
+adicional no repositório.
+
+Se os pacotes GHCR estiverem privados, autentique o servidor:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u SEU_USUARIO --password-stdin
+```
+
+O token precisa da permissão `read:packages`. Para instalação sem login, torne
+os dois packages públicos em `GitHub > Packages > Package settings`.
+
+Para usar uma versão fixa ou fazer rollback:
+
+```dotenv
+BACKEND_IMAGE=ghcr.io/josemaeldon/chat-bullq-cloud-backend:v1.0.0
+FRONTEND_IMAGE=ghcr.io/josemaeldon/chat-bullq-cloud-frontend:v1.0.0
+```
+
+Depois:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Para compilar localmente em vez de usar GHCR:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.build.yml \
+  up -d --build
+```
 
 ## Evolution GO
 
@@ -240,7 +329,7 @@ de recuperação nos logs. Em produção, configure SMTP obrigatoriamente.
 
 ```bash
 git pull
-docker compose build --pull
+docker compose pull
 docker compose up -d
 docker image prune -f
 ```
@@ -281,9 +370,12 @@ docker compose down
 # Reiniciar um serviço
 docker compose restart backend
 
-# Reconstruir o frontend após alterar a configuração de rede
-docker compose build frontend
-docker compose up -d frontend
+# Atualizar para as imagens mais recentes
+docker compose pull
+docker compose up -d
+
+# Build local para desenvolvimento
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 # Ver logs
 docker compose logs -f --tail=200
