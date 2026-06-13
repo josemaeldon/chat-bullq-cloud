@@ -20,9 +20,7 @@ export class EvolutionGoMessageMapper {
     const externalId = String(info?.ID || key?.id || '');
     if (!message || !externalId) return null;
 
-    const chat = String(
-      info?.Chat || info?.Sender || key?.remoteJid || key?.participant || '',
-    );
+    const chat = this.pickContactId(info, key);
     if (!chat) return null;
 
     const isGroup = info?.IsGroup === true || chat.endsWith('@g.us');
@@ -342,6 +340,27 @@ export class EvolutionGoMessageMapper {
     const jid = String(value || '');
     if (!jid) return undefined;
     return jid.replace(/@.+$/, '').replace(/:\d+$/, '');
+  }
+
+  private pickContactId(info: any, key: any): string {
+    const candidates = [
+      key?.remoteJid,
+      info?.Sender,
+      info?.Chat,
+      key?.participant,
+      info?.From,
+      info?.from,
+    ]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+
+    const jidLike = candidates.find((v) => /@(s\.whatsapp\.net|g\.us)$/i.test(v));
+    if (jidLike) return jidLike;
+
+    const numericLike = candidates.find((v) => /^\+?\d{8,16}$/.test(v));
+    if (numericLike) return numericLike.replace(/^\+/, '');
+
+    return candidates[0] || '';
   }
 
   private toNumber(value: unknown): number | undefined {

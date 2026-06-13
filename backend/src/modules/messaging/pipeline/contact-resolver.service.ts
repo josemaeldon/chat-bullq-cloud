@@ -23,6 +23,8 @@ export class ContactResolverService {
     channelId: string,
     message: NormalizedInboundMessage,
   ): Promise<ResolvedContact> {
+    const normalizedPhone = this.normalizePhone(message.contactPhone);
+
     // Fast path: already exists, just refresh mutable fields.
     const existing = await this.prisma.contactChannel.findUnique({
       where: {
@@ -39,6 +41,67 @@ export class ContactResolverService {
       return {
         contactId: existing.contactId,
         contactChannelId: existing.id,
+        isNew: false,
+      };
+    }
+
+    const phoneMatched = normalizedPhone
+      ? await this.prisma.contact.findFirst({
+          where: {
+            organizationId,
+            deletedAt: null,
+            phone: normalizedPhone,
+          },
+          include: { channels: true },
+        })
+      : null;
+
+    if (phoneMatched) {
+      const existingChannel = phoneMatched.channels.find(
+        (c) => c.channelId === channelId && c.externalId === message.externalContactId,
+      );
+      if (existingChannel) {
+        await this.applyProfileUpdates(
+          {
+            id: existingChannel.id,
+            profileName: existingChannel.profileName,
+            profileAvatarUrl: existingChannel.profileAvatarUrl,
+            contactId: phoneMatched.id,
+            contact: { name: phoneMatched.name, phone: phoneMatched.phone },
+          },
+          message,
+        );
+        return {
+          contactId: phoneMatched.id,
+          contactChannelId: existingChannel.id,
+          isNew: false,
+        };
+      }
+
+      const createdChannel = await this.prisma.contactChannel.create({
+        data: {
+          contactId: phoneMatched.id,
+          channelId,
+          externalId: message.externalContactId,
+          profileName: message.contactName,
+          profileAvatarUrl: message.contactAvatarUrl,
+        },
+      });
+
+      await this.applyProfileUpdates(
+        {
+          id: createdChannel.id,
+          profileName: createdChannel.profileName,
+          profileAvatarUrl: createdChannel.profileAvatarUrl,
+          contactId: phoneMatched.id,
+          contact: { name: phoneMatched.name, phone: phoneMatched.phone },
+        },
+        message,
+      );
+
+      return {
+        contactId: phoneMatched.id,
+        contactChannelId: createdChannel.id,
         isNew: false,
       };
     }
@@ -71,7 +134,7 @@ export class ContactResolverService {
           data: {
             organizationId,
             name: message.contactName,
-            phone: message.contactPhone,
+            phone: normalizedPhone,
             avatarUrl: message.contactAvatarUrl,
             channels: {
               create: {
@@ -130,7 +193,7 @@ export class ContactResolverService {
       contactUpdates.name = message.contactName;
     }
     if (message.contactPhone && !existing.contact.phone) {
-      contactUpdates.phone = message.contactPhone;
+      contactUpdates.phone = this.normalizePhone(message.contactPhone);
     }
     if (Object.keys(contactUpdates).length > 0) {
       await this.prisma.contact.update({
@@ -138,5 +201,10 @@ export class ContactResolverService {
         data: contactUpdates,
       });
     }
+  }
+
+  private normalizePhone(value?: string): string | undefined {
+    const digits = String(value || '').replace(/\D+/g, '');
+    return digits || undefined;
   }
 }

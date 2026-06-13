@@ -152,6 +152,124 @@ export class ConversationsService {
     return updated;
   }
 
+  async getNotes(
+    conversationId: string,
+    organizationId: string,
+    access: ChannelAccess = 'ALL',
+  ): Promise<Array<{ id: string; content: string; authorId: string; authorName: string; createdAt: string }>> {
+    const conversation = await this.findOne(conversationId, organizationId, access);
+    const notes = await this.prisma.internalNote.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: notes.map((n) => n.authorId) } },
+      select: { id: true, name: true },
+    });
+    const userById = new Map(users.map((u) => [u.id, u.name]));
+    return notes.map((note) => ({
+      id: note.id,
+      content: note.content,
+      authorId: note.authorId,
+      authorName: userById.get(note.authorId) || 'Sistema',
+      createdAt: note.createdAt.toISOString(),
+    }));
+  }
+
+  async createNote(
+    conversationId: string,
+    organizationId: string,
+    authorId: string,
+    content: string,
+    access: ChannelAccess = 'ALL',
+  ): Promise<{ id: string; content: string; authorId: string; authorName: string; createdAt: string }> {
+    const conversation = await this.findOne(conversationId, organizationId, access);
+    const trimmed = content.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Note content is required');
+    }
+    const note = await this.prisma.internalNote.create({
+      data: {
+        conversationId: conversation.id,
+        authorId,
+        content: trimmed,
+      },
+    });
+    const author = await this.prisma.user.findUnique({
+      where: { id: authorId },
+      select: { name: true },
+    });
+    this.prisma.conversationAuditLog
+      .create({
+        data: {
+          conversationId: conversation.id,
+          actorId: authorId,
+          action: 'INTERNAL_NOTE_CREATED',
+          metadata: { noteId: note.id },
+        },
+      })
+      .catch(() => undefined);
+    return {
+      id: note.id,
+      content: note.content,
+      authorId: note.authorId,
+      authorName: author?.name || 'Sistema',
+      createdAt: note.createdAt.toISOString(),
+    };
+  }
+
+  async deleteNote(
+    conversationId: string,
+    noteId: string,
+    organizationId: string,
+    authorId: string,
+    access: ChannelAccess = 'ALL',
+  ): Promise<void> {
+    const conversation = await this.findOne(conversationId, organizationId, access);
+    const note = await this.prisma.internalNote.findFirst({
+      where: { id: noteId, conversationId: conversation.id },
+    });
+    if (!note) throw new NotFoundException('Note not found');
+    await this.prisma.internalNote.delete({ where: { id: noteId } });
+    this.prisma.conversationAuditLog
+      .create({
+        data: {
+          conversationId: conversation.id,
+          actorId: authorId,
+          action: 'INTERNAL_NOTE_DELETED',
+          metadata: { noteId },
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  async getAuditLogs(
+    conversationId: string,
+    organizationId: string,
+    access: ChannelAccess = 'ALL',
+  ): Promise<Array<{ id: string; action: string; label: string; createdAt: string }>> {
+    const conversation = await this.findOne(conversationId, organizationId, access);
+    const logs = await this.prisma.conversationAuditLog.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    const actorIds = [...new Set(logs.map((l) => l.actorId).filter(Boolean) as string[])];
+    const users = actorIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const userById = new Map(users.map((u) => [u.id, u.name]));
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      label: this.auditLabel(log.action, userById.get(log.actorId || '') || 'Sistema'),
+      createdAt: log.createdAt.toISOString(),
+    }));
+  }
+
   async toggleAi(
     id: string,
     organizationId: string,
@@ -643,5 +761,38 @@ export class ConversationsService {
       (c) => c.channelId === conversation.channelId,
     );
     return contactChannel?.externalId ?? null;
+  }
+
+  private auditLabel(action: string, actorName: string): string {
+    switch (action) {
+      case 'CREATED':
+        return `${actorName} criou a conversa`;
+      case 'REOPENED':
+        return `${actorName} reabriu a conversa`;
+      case 'STATUS_CHANGED':
+        return `${actorName} alterou o status da conversa`;
+      case 'ASSIGNED':
+        return `${actorName} atribuiu a conversa`;
+      case 'CONVERSATION_ARCHIVED':
+        return `${actorName} arquivou a conversa`;
+      case 'CONVERSATION_UNARCHIVED':
+        return `${actorName} desarquivou a conversa`;
+      case 'AI_FORCED_ON':
+        return `${actorName} forçou a IA para ligada`;
+      case 'AI_FORCED_OFF':
+        return `${actorName} desligou a IA`;
+      case 'AI_OVERRIDE_CLEARED':
+        return `${actorName} restaurou as regras da IA`;
+      case 'AI_ENGAGED_MANUALLY':
+        return `${actorName} acionou a IA manualmente`;
+      case 'AI_AGENT_SET':
+        return `${actorName} definiu um agente de IA`;
+      case 'INTERNAL_NOTE_CREATED':
+        return `${actorName} adicionou uma nota interna`;
+      case 'INTERNAL_NOTE_DELETED':
+        return `${actorName} removeu uma nota interna`;
+      default:
+        return `${actorName} registrou ${action.toLowerCase().replace(/_/g, ' ')}`;
+    }
   }
 }

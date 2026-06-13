@@ -177,6 +177,50 @@ export class ConversationsController {
     return this.service.findOne(id, orgId, access);
   }
 
+  @Get(':id/notes')
+  @ApiOperation({ summary: 'List internal notes for a conversation' })
+  getNotes(
+    @Param('id') id: string,
+    @CurrentOrg('id') orgId: string,
+    @CurrentChannelAccess() access: ChannelAccess,
+  ) {
+    return this.service.getNotes(id, orgId, access);
+  }
+
+  @Post(':id/notes')
+  @ApiOperation({ summary: 'Create an internal note for a conversation' })
+  createNote(
+    @Param('id') id: string,
+    @CurrentOrg('id') orgId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentChannelAccess() access: ChannelAccess,
+    @Body() body: { content: string },
+  ) {
+    return this.service.createNote(id, orgId, userId, body.content, access);
+  }
+
+  @Delete(':id/notes/:noteId')
+  @ApiOperation({ summary: 'Delete an internal note from a conversation' })
+  deleteNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @CurrentOrg('id') orgId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentChannelAccess() access: ChannelAccess,
+  ) {
+    return this.service.deleteNote(id, noteId, orgId, userId, access);
+  }
+
+  @Get(':id/audit-logs')
+  @ApiOperation({ summary: 'List audit logs for a conversation' })
+  getAuditLogs(
+    @Param('id') id: string,
+    @CurrentOrg('id') orgId: string,
+    @CurrentChannelAccess() access: ChannelAccess,
+  ) {
+    return this.service.getAuditLogs(id, orgId, access);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update conversation (assign, change status, department)' })
   update(
