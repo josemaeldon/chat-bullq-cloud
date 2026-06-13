@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   MessageSquare,
   MoreVertical,
@@ -348,13 +348,20 @@ function EvolutionGoQrDialog({
   const [rawCode, setRawCode] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
 
+  const normalizeQrCode = (value: string | null | undefined) => {
+    if (!value) return null;
+    if (value.startsWith('data:image/')) return value;
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    return `data:image/png;base64,${value}`;
+  };
+
   const loadQr = async () => {
     if (!channel) return;
     setLoading(true);
     try {
       const result = await channelsService.getEvolutionGoQr(channel.id);
       setConnected(result.connected);
-      setQrCode(result.qrCode);
+      setQrCode(normalizeQrCode(result.qrCode));
       setPairingCode(result.pairingCode ?? null);
       setRawCode(result.code ?? null);
       if (result.connected) toast.success('WhatsApp já está conectado');
@@ -366,6 +373,14 @@ function EvolutionGoQrDialog({
   };
 
   if (!channel) return null;
+
+  useEffect(() => {
+    setQrCode(null);
+    setPairingCode(null);
+    setRawCode(null);
+    setConnected(false);
+    void loadQr();
+  }, [channel?.id]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">

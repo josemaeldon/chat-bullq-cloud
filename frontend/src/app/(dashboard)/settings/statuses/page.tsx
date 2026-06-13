@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  CONTACT_STATUSES_SUPPORTED,
   contactStatusesService,
   type ContactStatus,
 } from '@/features/settings/services/contact-statuses.service';
@@ -170,8 +171,14 @@ export default function SettingsStatusesPage() {
         <p className="mt-1 text-sm text-zinc-500">
           Gerencie os status dos seus contatos e defina fluxos de trabalho.
         </p>
+        {!CONTACT_STATUSES_SUPPORTED && (
+          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+            Este recurso ainda nao esta disponivel no backend atual.
+          </p>
+        )}
         <button
           onClick={openCreate}
+          disabled={!CONTACT_STATUSES_SUPPORTED}
           className="mt-4 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           <Plus className="h-4 w-4" /> Criar Status
@@ -216,7 +223,11 @@ export default function SettingsStatusesPage() {
                   <div className="flex flex-col items-center py-14 text-center">
                     <CircleDot className="h-10 w-10 text-zinc-200 dark:text-zinc-700" />
                     <p className="mt-3 text-sm text-zinc-500">
-                      {search ? 'Nenhum status encontrado' : 'Nenhum status criado'}
+                      {!CONTACT_STATUSES_SUPPORTED
+                        ? 'Recurso indisponivel nesta versao do backend'
+                        : search
+                          ? 'Nenhum status encontrado'
+                          : 'Nenhum status criado'}
                     </p>
                   </div>
                 </td>

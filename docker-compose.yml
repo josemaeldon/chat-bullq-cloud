@@ -117,6 +117,7 @@ services:
       - backend_uploads:/app/uploads
     networks:
       - chat_bullq_internal
+      - luzianet
     deploy:
       replicas: 1
       restart_policy:
@@ -124,6 +125,19 @@ services:
         delay: 10s
       update_config:
         order: start-first
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=luzianet
+
+        - traefik.http.routers.chat-bullq-socket.rule=Host(`chatgo.cloudbr.app`) && PathPrefix(`/socket.io`)
+        - traefik.http.routers.chat-bullq-socket.entrypoints=websecure
+        - traefik.http.routers.chat-bullq-socket.tls=true
+        - traefik.http.routers.chat-bullq-socket.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.chat-bullq-socket.service=chat-bullq-backend
+        - traefik.http.routers.chat-bullq-socket.priority=100
+
+        - traefik.http.services.chat-bullq-backend.loadbalancer.server.port=3001
+        - traefik.http.services.chat-bullq-backend.loadbalancer.passHostHeader=true
 
   frontend:
     image: ghcr.io/josemaeldon/chat-bullq-cloud-frontend:latest
