@@ -97,22 +97,33 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
       sourceUrl?: string;
       mimeType?: string;
       originalFilename?: string;
+      rawPayload?: unknown;
     },
   ): Promise<{ fileUrl: string; mimeType?: string }> {
-    const source = hint.mediaId || hint.sourceUrl;
-    if (!source) {
+    const source = hint.sourceUrl || hint.mediaId;
+    const inferredFromPayload = this.extractMediaFromPayload(hint.rawPayload);
+    const candidate = source || inferredFromPayload?.source;
+    const decoded = candidate?.startsWith('data:')
+      ? this.decodeDataUrl(candidate)
+      : null;
+
+    const buffer =
+      decoded?.buffer ??
+      (candidate && /^https?:\/\//i.test(candidate)
+        ? await this.downloadMedia(channel, candidate)
+        : inferredFromPayload?.buffer);
+
+    if (!buffer) {
       throw new Error(
-        `Evolution media resolution requires mediaId or sourceUrl (msg=${hint.externalMessageId})`,
+        `Evolution media resolution failed (msg=${hint.externalMessageId})`,
       );
     }
-    const decoded = source.startsWith('data:')
-      ? this.decodeDataUrl(source)
-      : null;
-    const buffer = decoded?.buffer ?? await this.downloadMedia(channel, source);
+
     const mimeType =
       hint.mimeType ||
       decoded?.mimeType ||
-      this.mimeTypeFromSource(source, hint.originalFilename) ||
+      inferredFromPayload?.mimeType ||
+      this.mimeTypeFromSource(candidate || '', hint.originalFilename) ||
       'application/octet-stream';
     const saved = await this.uploads.saveInboundMedia({
       buffer,
@@ -132,6 +143,53 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
       buffer: Buffer.from(match[2], 'base64'),
       mimeType: match[1],
     };
+  }
+
+  private extractMediaFromPayload(
+    rawPayload: unknown,
+  ): { buffer?: Buffer; source?: string; mimeType?: string } | undefined {
+    const seen = new Set<any>();
+    const walk = (value: any): { buffer?: Buffer; source?: string; mimeType?: string } | undefined => {
+      if (!value || typeof value !== 'object' || seen.has(value)) return undefined;
+      seen.add(value);
+
+      const mimeType =
+        this.mimeTypeFromSource(String(value?.url || value?.mediaUrl || value?.fileUrl || value?.path || ''), value?.fileName) ||
+        value?.mimetype ||
+        value?.mimeType ||
+        undefined;
+
+      const direct = value?.base64 || value?.data;
+      if (typeof direct === 'string' && direct.trim()) {
+        return {
+          buffer: this.decodeBase64MaybeDataUrl(direct).buffer,
+          mimeType: this.decodeBase64MaybeDataUrl(direct).mimeType || mimeType,
+        };
+      }
+
+      const source = value?.mediaUrl || value?.url || value?.fileUrl || value?.path;
+      if (typeof source === 'string' && source.trim()) {
+        return { source, mimeType };
+      }
+
+      for (const child of Object.values(value)) {
+        const found = walk(child);
+        if (found) return found;
+      }
+      return undefined;
+    };
+
+    return walk(rawPayload);
+  }
+
+  private decodeBase64MaybeDataUrl(
+    value: string,
+  ): { buffer: Buffer; mimeType?: string } {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('data:')) {
+      return this.decodeDataUrl(trimmed);
+    }
+    return { buffer: Buffer.from(trimmed, 'base64') };
   }
 
   private mimeTypeFromSource(

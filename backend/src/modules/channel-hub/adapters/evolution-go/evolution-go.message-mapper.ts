@@ -303,7 +303,10 @@ export class EvolutionGoMessageMapper {
       };
     }
 
-    const mimeType = node?.mimetype || node?.mimeType;
+    const mimeType = this.normalizeMimeType(
+      node?.mimetype || node?.mimeType,
+      type,
+    );
     const base64 = data?.base64 || message?.base64;
     const providerMediaUrl =
       data?.mediaUrl ||
@@ -311,8 +314,11 @@ export class EvolutionGoMessageMapper {
       node?.mediaUrl ||
       node?.url ||
       node?.URL;
-    const mediaUrl = providerMediaUrl ||
-      (base64 ? `data:${mimeType || 'application/octet-stream'};base64,${base64}` : undefined);
+    const mediaUrl =
+      providerMediaUrl ||
+      (base64
+        ? `data:${mimeType || this.defaultMimeTypeFor(type)};base64,${base64}`
+        : undefined);
 
     return {
       mediaUrl,
@@ -341,6 +347,31 @@ export class EvolutionGoMessageMapper {
   private toNumber(value: unknown): number | undefined {
     const number = Number(value);
     return Number.isFinite(number) ? number : undefined;
+  }
+
+  private normalizeMimeType(
+    mimeType: string | undefined,
+    type: MessageContentType,
+  ): string | undefined {
+    const trimmed = typeof mimeType === 'string' ? mimeType.trim() : '';
+    return trimmed || this.defaultMimeTypeFor(type);
+  }
+
+  private defaultMimeTypeFor(type: MessageContentType): string | undefined {
+    switch (type) {
+      case MessageContentType.IMAGE:
+        return 'image/jpeg';
+      case MessageContentType.AUDIO:
+        return 'audio/ogg';
+      case MessageContentType.VIDEO:
+        return 'video/mp4';
+      case MessageContentType.DOCUMENT:
+        return 'application/octet-stream';
+      case MessageContentType.STICKER:
+        return 'image/webp';
+      default:
+        return undefined;
+    }
   }
 
   private toDate(value: unknown): Date {

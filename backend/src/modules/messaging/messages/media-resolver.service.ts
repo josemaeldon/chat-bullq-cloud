@@ -28,8 +28,8 @@ export class MediaResolverService {
   private isStableBrowserUrl(url: string): boolean {
     return (
       url.startsWith('data:') ||
-      url.startsWith('/api/v1/uploads/') ||
-      url.includes('/api/v1/uploads/')
+      (url.startsWith('/api/v1/uploads/') || url.includes('/api/v1/uploads/')) &&
+        !/\.bin(\?|$)/i.test(url)
     );
   }
 
@@ -54,6 +54,7 @@ export class MediaResolverService {
     }
 
     const content = (message.content ?? {}) as Record<string, any>;
+    const rawPayload = (message.metadata as Record<string, any> | undefined)?.rawPayload;
 
     if (
       typeof content.mediaUrl === 'string' &&
@@ -84,6 +85,7 @@ export class MediaResolverService {
         sourceUrl: typeof content.mediaUrl === 'string' ? content.mediaUrl : undefined,
         mimeType: typeof content.mimeType === 'string' ? content.mimeType : undefined,
         originalFilename: typeof content.fileName === 'string' ? content.fileName : undefined,
+        rawPayload,
       },
     );
 

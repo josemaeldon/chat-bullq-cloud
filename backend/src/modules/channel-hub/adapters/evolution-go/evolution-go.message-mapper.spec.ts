@@ -90,6 +90,30 @@ describe('EvolutionGoMessageMapper', () => {
     });
   });
 
+  it('falls back to a browser-friendly mime type for base64 images', () => {
+    const result = mapper.normalizeInbound({
+      event: 'Message',
+      data: {
+        Info: {
+          ID: 'msg-4',
+          Chat: '5591999999999@s.whatsapp.net',
+          Timestamp: 1710000000,
+          MediaType: 'image',
+        },
+        Message: {
+          imageMessage: {
+            caption: 'Foto',
+            fileLength: 12,
+          },
+        },
+        base64: 'YWJj',
+      },
+    });
+
+    expect(result?.content?.mimeType).toBe('image/jpeg');
+    expect(result?.content?.mediaUrl).toBe('data:image/jpeg;base64,YWJj');
+  });
+
   it('normalizes every message id from a receipt', () => {
     const result = mapper.normalizeStatuses({
       event: 'Receipt',

@@ -7,6 +7,7 @@ export interface ResolveMediaHint {
   sourceUrl?: string;
   mimeType?: string;
   originalFilename?: string;
+  rawPayload?: unknown;
 }
 
 export interface OutboundChannelPort {

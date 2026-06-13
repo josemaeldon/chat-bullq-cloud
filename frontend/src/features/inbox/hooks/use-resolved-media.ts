@@ -123,5 +123,5 @@ function pickInitialUrl(message: Message, forceResolve = false): string | undefi
  * can't decrypt it — treating it as unplayable forces a backend resolve.
  */
 function looksUnplayable(u: string): boolean {
-  return /\.enc(\?|$)/i.test(u) || /mmg\.whatsapp\.net/i.test(u);
+  return /\.enc(\?|$)/i.test(u) || /\.bin(\?|$)/i.test(u) || /mmg\.whatsapp\.net/i.test(u);
 }
