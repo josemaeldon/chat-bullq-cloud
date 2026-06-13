@@ -26,10 +26,17 @@ import {
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
 
+  private isEvolutionGoType(type: ChannelType) {
+    return type === ChannelType.WHATSAPP_EVOLUTION_GO;
+  }
+
+  private isEvolutionApiType(type: ChannelType) {
+    return type === ChannelType.WHATSAPP_EVOLUTION_API;
+  }
+
   private isEvolutionType(type: ChannelType) {
     return (
-      type === ChannelType.WHATSAPP_EVOLUTION_GO ||
-      type === ChannelType.WHATSAPP_EVOLUTION_API
+      this.isEvolutionGoType(type) || this.isEvolutionApiType(type)
     );
   }
 
@@ -51,9 +58,11 @@ export class ChannelsService {
     creator?: { userOrganizationId: string; role: OrgRole },
   ) {
     const providerConfig =
-      this.isEvolutionType(dto.type)
+      this.isEvolutionGoType(dto.type)
         ? await this.prepareEvolutionGoConfig(dto.name, dto.config)
-        : dto.config;
+        : this.isEvolutionApiType(dto.type)
+          ? this.prepareEvolutionApiConfig(dto.config)
+          : dto.config;
 
     let channel = await this.repository.create({
       organizationId,
@@ -109,7 +118,7 @@ export class ChannelsService {
       );
     }
 
-    if (this.isEvolutionType(dto.type)) {
+    if (this.isEvolutionGoType(dto.type)) {
       this.configureEvolutionGoWebhook(channel.id).catch((err) =>
         this.logger.warn(`Evolution webhook config failed: ${err.message}`),
       );
@@ -216,6 +225,19 @@ export class ChannelsService {
     }
   }
 
+  private prepareEvolutionApiConfig(
+    rawConfig: Record<string, any>,
+  ): Record<string, any> {
+    const config = { ...rawConfig };
+    return {
+      ...config,
+      ...(config.baseUrl
+        ? { baseUrl: String(config.baseUrl).replace(/\/+$/, '') }
+        : {}),
+      apiVersion: 'v2',
+    };
+  }
+
   /**
    * Ensures the channel's config contains the provider-side IDs used by the
    * webhook router (`igBusinessId` / `phoneNumberId`). Idempotent: skipped
@@ -247,7 +269,7 @@ export class ChannelsService {
         );
       }
 
-      if (this.isEvolutionType(type)) {
+      if (this.isEvolutionGoType(type)) {
         if (!config.baseUrl || !config.apiKey || !config.instanceId) {
           throw new BadRequestException(
             'Evolution exige URL da API, API Key global e Instance ID',
@@ -286,7 +308,7 @@ export class ChannelsService {
       this.logger.warn(
         `enrichProviderIds failed for channel ${channelId}: ${err.message}`,
       );
-      if (this.isEvolutionType(type)) {
+      if (this.isEvolutionGoType(type)) {
         throw new BadRequestException(
           err.response?.data?.message ||
             err.message ||
@@ -380,7 +402,7 @@ export class ChannelsService {
       return this.repository.findById(id);
     }
     let updated = await this.repository.update(id, rest);
-    if (this.isEvolutionType(updated.type) && rest.config) {
+    if (this.isEvolutionGoType(updated.type) && rest.config) {
       const config = updated.config as Record<string, any>;
       const { instanceToken: _oldToken, ...configWithoutToken } = config;
       updated = await this.repository.update(id, {

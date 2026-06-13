@@ -41,9 +41,11 @@ export class EvolutionGoHttpClient {
 
   private config(channel: Channel): EvolutionGoConfig {
     const config = channel.config as unknown as EvolutionGoConfig;
-    if (!config.baseUrl || !config.apiKey || !config.instanceId) {
+    const hasInstanceRef =
+      !!config.instanceId || (config.apiVersion === 'v2' && !!config.instanceName);
+    if (!config.baseUrl || !config.apiKey || !hasInstanceRef) {
       throw new Error(
-        'Evolution GO requires baseUrl, apiKey and instanceId',
+        'Evolution requires baseUrl, apiKey and an instance reference',
       );
     }
     return {
