@@ -4,6 +4,7 @@ import { NormalizedOutboundMessage, SendResult, RateLimitConfig } from './types'
 export interface ResolveMediaHint {
   externalMessageId: string;
   mediaId?: string;
+  sourceUrl?: string;
   mimeType?: string;
   originalFilename?: string;
 }

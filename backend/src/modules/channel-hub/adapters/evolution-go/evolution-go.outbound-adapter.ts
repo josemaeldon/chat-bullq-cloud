@@ -8,6 +8,7 @@ import {
 } from '../../ports/types';
 import { EvolutionGoHttpClient } from './evolution-go.http-client';
 import { EvolutionGoMessageMapper } from './evolution-go.message-mapper';
+import { UploadsService } from '../../../messaging/messages/uploads.service';
 
 @Injectable()
 export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
@@ -17,6 +18,7 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
   constructor(
     private readonly mapper: EvolutionGoMessageMapper,
     private readonly httpClient: EvolutionGoHttpClient,
+    private readonly uploads: UploadsService,
   ) {}
 
   async sendMessage(
@@ -85,6 +87,32 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
 
   async downloadMedia(_channel: Channel, mediaId: string): Promise<Buffer> {
     return this.httpClient.getMediaBuffer(mediaId);
+  }
+
+  async resolveInboundMediaUrl(
+    channel: Channel,
+    hint: {
+      externalMessageId: string;
+      mediaId?: string;
+      sourceUrl?: string;
+      mimeType?: string;
+      originalFilename?: string;
+    },
+  ): Promise<{ fileUrl: string; mimeType?: string }> {
+    const source = hint.mediaId || hint.sourceUrl;
+    if (!source) {
+      throw new Error(
+        `Evolution media resolution requires mediaId or sourceUrl (msg=${hint.externalMessageId})`,
+      );
+    }
+    const buffer = await this.downloadMedia(channel, source);
+    const saved = await this.uploads.saveInboundMedia({
+      buffer,
+      mimeType: hint.mimeType || 'application/octet-stream',
+      channelId: channel.id,
+      originalFilename: hint.originalFilename ?? null,
+    });
+    return { fileUrl: saved.url, mimeType: saved.mimeType };
   }
 
   async deleteMessage(

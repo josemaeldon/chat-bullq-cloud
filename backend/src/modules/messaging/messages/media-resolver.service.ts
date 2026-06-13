@@ -25,6 +25,14 @@ export class MediaResolverService {
     private readonly adapterRegistry: ChannelAdapterRegistry,
   ) {}
 
+  private isStableBrowserUrl(url: string): boolean {
+    return (
+      url.startsWith('data:') ||
+      url.startsWith('/api/v1/uploads/') ||
+      url.includes('/api/v1/uploads/')
+    );
+  }
+
   async resolve(
     messageId: string,
     organizationId: string,
@@ -47,7 +55,11 @@ export class MediaResolverService {
 
     const content = (message.content ?? {}) as Record<string, any>;
 
-    if (typeof content.mediaUrl === 'string' && content.mediaUrl) {
+    if (
+      typeof content.mediaUrl === 'string' &&
+      content.mediaUrl &&
+      this.isStableBrowserUrl(content.mediaUrl)
+    ) {
       return { url: content.mediaUrl, mimeType: content.mimeType };
     }
 
@@ -69,6 +81,7 @@ export class MediaResolverService {
       {
         externalMessageId: externalId,
         mediaId: typeof content.mediaId === 'string' ? content.mediaId : undefined,
+        sourceUrl: typeof content.mediaUrl === 'string' ? content.mediaUrl : undefined,
         mimeType: typeof content.mimeType === 'string' ? content.mimeType : undefined,
         originalFilename: typeof content.fileName === 'string' ? content.fileName : undefined,
       },
