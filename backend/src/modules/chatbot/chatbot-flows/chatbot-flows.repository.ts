@@ -8,7 +8,25 @@ export class ChatbotFlowsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: Prisma.ChatbotFlowUncheckedCreateInput) {
-    return this.prisma.chatbotFlow.create({ data });
+    return this.prisma.chatbotFlow.create({
+      data: {
+        ...data,
+        nodes: {
+          create: {
+            id: randomUUID(),
+            type: 'START',
+            positionX: 120,
+            positionY: 120,
+            data: {},
+            edges: [],
+          },
+        },
+      },
+      include: {
+        nodes: { orderBy: { createdAt: 'asc' } },
+        channels: { include: { channel: { select: { id: true, name: true, type: true } } } },
+      },
+    });
   }
 
   async findByOrg(organizationId: string) {

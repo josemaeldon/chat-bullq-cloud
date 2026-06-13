@@ -26,6 +26,14 @@ export function ChatSimulator({ nodes, edges, onClose }: ChatSimulatorProps) {
 
   const getNode = (id: string) => nodes.find((n) => n.id === id);
   const getEdgesFrom = (id: string) => edges.filter((e) => e.source === id);
+  const getEntryNode = () => {
+    const explicitStart = nodes.find((n) => n.type === 'START');
+    if (explicitStart) return explicitStart;
+    const targets = new Set(edges.map((e) => e.target));
+    const rootCandidate = nodes.find((n) => !targets.has(n.id));
+    if (rootCandidate) return rootCandidate;
+    return nodes[0] ?? null;
+  };
 
   const processNode = (nodeId: string, userInput?: string) => {
     const node = getNode(nodeId);
@@ -104,6 +112,12 @@ export function ChatSimulator({ nodes, edges, onClose }: ChatSimulatorProps) {
         setEnded(true);
         break;
       }
+      default: {
+        const next = outEdges[0]?.target;
+        if (next) setTimeout(() => processNode(next), 200);
+        else setEnded(true);
+        break;
+      }
     }
   };
 
@@ -112,11 +126,16 @@ export function ChatSimulator({ nodes, edges, onClose }: ChatSimulatorProps) {
     setVariables({});
     setEnded(false);
     setWaitingForInput(false);
-    const startNode = nodes.find((n) => n.type === 'START');
-    if (startNode) processNode(startNode.id);
+    setCurrentNodeId(null);
+    const entryNode = getEntryNode();
+    if (entryNode) processNode(entryNode.id);
+    else {
+      setMessages([{ from: 'bot', text: 'Fluxo vazio. Adicione ao menos um no para simular.' }]);
+      setEnded(true);
+    }
   };
 
-  useEffect(() => { start(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { start(); }, [nodes, edges]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const handleSend = () => {

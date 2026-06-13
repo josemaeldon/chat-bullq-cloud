@@ -1,6 +1,7 @@
 'use client';
 
 const nodeTemplates = [
+  { type: 'START', label: 'Inicio', icon: '▶️', color: 'bg-emerald-500' },
   { type: 'MESSAGE', label: 'Mensagem', icon: '💬', color: 'bg-blue-500' },
   { type: 'MENU', label: 'Menu', icon: '📋', color: 'bg-violet-500' },
   { type: 'CONDITION', label: 'Condição', icon: '🔀', color: 'bg-amber-500' },
