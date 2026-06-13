@@ -12,13 +12,30 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    bodyParser: false,
+  });
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
   // helmet blocks cross-origin media by default; relax that for <audio>/<img>
   // tags served by this API (same origin, but browsers enforce CORP).
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(
+    express.json({
+      limit: '50mb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+  app.use(
+    express.urlencoded({
+      extended: true,
+      limit: '50mb',
+    }),
+  );
   app.setGlobalPrefix('api/v1');
 
   // Serve locally-stored user uploads (audio, etc.) before the global prefix
