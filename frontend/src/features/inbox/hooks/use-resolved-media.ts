@@ -32,11 +32,12 @@ interface UseResolvedMediaResult {
  */
 export function useResolvedMedia(
   message: Message,
-  options: { mode?: ResolveMode } = {},
+  options: { mode?: ResolveMode; forceResolve?: boolean } = {},
 ): UseResolvedMediaResult {
   const mode = options.mode ?? 'lazy';
+  const forceResolve = options.forceResolve ?? false;
 
-  const initial = pickInitialUrl(message);
+  const initial = pickInitialUrl(message, forceResolve);
   const [url, setUrl] = useState<string | undefined>(initial);
   const [mimeType, setMimeType] = useState<string | undefined>(
     typeof message.content?.mimeType === 'string'
@@ -49,7 +50,7 @@ export function useResolvedMedia(
 
   // Reset cached URL when the message id changes (e.g., key reused in a list).
   useEffect(() => {
-    const next = pickInitialUrl(message);
+    const next = pickInitialUrl(message, forceResolve);
     setUrl(next);
     setMimeType(
       typeof message.content?.mimeType === 'string'
@@ -57,7 +58,7 @@ export function useResolvedMedia(
         : undefined,
     );
     setError(null);
-  }, [message.id, message.content?.mediaUrl, message.content?.mimeType]);
+  }, [message.id, message.content?.mediaUrl, message.content?.mimeType, forceResolve]);
 
   const doResolve = async (force = false) => {
     if (!message.id) return;
@@ -109,7 +110,8 @@ export function useResolvedMedia(
   };
 }
 
-function pickInitialUrl(message: Message): string | undefined {
+function pickInitialUrl(message: Message, forceResolve = false): string | undefined {
+  if (forceResolve) return undefined;
   const u = message.content?.mediaUrl;
   if (typeof u !== 'string' || !u) return undefined;
   if (looksUnplayable(u)) return undefined;

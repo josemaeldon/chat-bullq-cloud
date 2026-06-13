@@ -32,6 +32,11 @@ interface ChatPanelProps {
   onTogglePanel?: () => void;
 }
 
+const EVOLUTION_TYPES = new Set([
+  'WHATSAPP_EVOLUTION_GO',
+  'WHATSAPP_EVOLUTION_API',
+]);
+
 const statusIcons: Record<string, React.ElementType> = {
   QUEUED: Clock,
   SENT: Check,
@@ -1187,6 +1192,7 @@ export function ChatPanel({ conversation, onConversationUpdate, panelOpen, onTog
                           <AudioMessagePlayer
                             message={msg}
                             isOutbound={isOutbound}
+                            forceResolve={EVOLUTION_TYPES.has(conversation.channel.type)}
                             onTranscribed={() => {
                               queryClient.invalidateQueries({ queryKey: ['messages', conversation.id] });
                             }}
@@ -1225,16 +1231,32 @@ export function ChatPanel({ conversation, onConversationUpdate, panelOpen, onTog
                               text={msg.content?.text || ''}
                               isOutbound={isOutbound}
                             />
-                          ) : msg.type === 'IMAGE' ? (
-                            <MediaImage message={msg} isOutbound={isOutbound} />
-                          ) : msg.type === 'VIDEO' ? (
-                            <MediaVideo message={msg} isOutbound={isOutbound} />
-                          ) : msg.type === 'DOCUMENT' ? (
-                            <MediaDocument message={msg} isOutbound={isOutbound} />
-                          ) : msg.type === 'STICKER' ? (
-                            <MediaSticker message={msg} isOutbound={isOutbound} />
-                          ) : msg.type === 'LOCATION' ? (
-                            <MediaLocation message={msg} isOutbound={isOutbound} />
+                      ) : msg.type === 'IMAGE' ? (
+                        <MediaImage
+                          message={msg}
+                          isOutbound={isOutbound}
+                          forceResolve={EVOLUTION_TYPES.has(conversation.channel.type)}
+                        />
+                      ) : msg.type === 'VIDEO' ? (
+                        <MediaVideo
+                          message={msg}
+                          isOutbound={isOutbound}
+                          forceResolve={EVOLUTION_TYPES.has(conversation.channel.type)}
+                        />
+                      ) : msg.type === 'DOCUMENT' ? (
+                        <MediaDocument
+                          message={msg}
+                          isOutbound={isOutbound}
+                          forceResolve={EVOLUTION_TYPES.has(conversation.channel.type)}
+                        />
+                      ) : msg.type === 'STICKER' ? (
+                        <MediaSticker
+                          message={msg}
+                          isOutbound={isOutbound}
+                          forceResolve={EVOLUTION_TYPES.has(conversation.channel.type)}
+                        />
+                      ) : msg.type === 'LOCATION' ? (
+                        <MediaLocation message={msg} isOutbound={isOutbound} />
                           ) : msg.type === 'TEMPLATE' ? (
                             <TemplateMessage content={msg.content} isOutbound={isOutbound} />
                           ) : (

@@ -63,6 +63,33 @@ describe('EvolutionGoMessageMapper', () => {
     });
   });
 
+  it('detects media even when the provider omits an explicit media type', () => {
+    const result = mapper.normalizeInbound({
+      event: 'Message',
+      data: {
+        Info: {
+          ID: 'msg-3',
+          Chat: '5591999999999@s.whatsapp.net',
+          Timestamp: 1710000000,
+        },
+        Message: {
+          message: {
+            audioMessage: {
+              mimetype: 'audio/ogg',
+              fileLength: 42,
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.type).toBe(MessageContentType.AUDIO);
+    expect(result?.content).toMatchObject({
+      mimeType: 'audio/ogg',
+      fileSize: 42,
+    });
+  });
+
   it('normalizes every message id from a receipt', () => {
     const result = mapper.normalizeStatuses({
       event: 'Receipt',

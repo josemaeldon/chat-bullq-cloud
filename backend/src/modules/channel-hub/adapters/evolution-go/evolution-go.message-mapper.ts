@@ -202,6 +202,10 @@ export class EvolutionGoMessageMapper {
     if (type.includes('location')) return MessageContentType.LOCATION;
     if (type.includes('reaction')) return MessageContentType.REACTION;
     if (type.includes('button') || type.includes('list')) return MessageContentType.INTERACTIVE;
+
+    const detected = this.detectContentTypeFromMessage(message);
+    if (detected) return detected;
+
     return MessageContentType.TEXT;
   }
 
@@ -219,7 +223,53 @@ export class EvolutionGoMessageMapper {
     for (const key of keys[type] || []) {
       if (message?.[key]) return message[key];
     }
+
+    const nested = message?.message;
+    if (nested && nested !== message) {
+      const nestedNode = this.findMessageNode(nested, type);
+      if (nestedNode) return nestedNode;
+    }
+
     return message;
+  }
+
+  private detectContentTypeFromMessage(message: any): MessageContentType | null {
+    const priority: Array<[MessageContentType, string[]]> = [
+      [MessageContentType.IMAGE, ['imageMessage']],
+      [MessageContentType.AUDIO, ['audioMessage']],
+      [MessageContentType.VIDEO, ['videoMessage', 'ptvMessage']],
+      [MessageContentType.DOCUMENT, ['documentMessage']],
+      [MessageContentType.STICKER, ['stickerMessage']],
+      [MessageContentType.LOCATION, ['locationMessage']],
+      [MessageContentType.REACTION, ['reactionMessage']],
+      [MessageContentType.TEXT, ['extendedTextMessage']],
+    ];
+
+    for (const [type, keys] of priority) {
+      if (this.hasAnyMessageNode(message, keys, new Set<any>())) {
+        return type;
+      }
+    }
+    return null;
+  }
+
+  private hasAnyMessageNode(
+    value: any,
+    keys: string[],
+    seen: Set<any>,
+  ): boolean {
+    if (!value || typeof value !== 'object' || seen.has(value)) return false;
+    seen.add(value);
+
+    for (const key of keys) {
+      if (value[key]) return true;
+    }
+
+    for (const child of Object.values(value)) {
+      if (this.hasAnyMessageNode(child, keys, seen)) return true;
+    }
+
+    return false;
   }
 
   private extractContent(

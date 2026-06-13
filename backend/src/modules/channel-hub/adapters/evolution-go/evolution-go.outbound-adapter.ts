@@ -105,14 +105,85 @@ export class EvolutionGoOutboundAdapter implements OutboundChannelPort {
         `Evolution media resolution requires mediaId or sourceUrl (msg=${hint.externalMessageId})`,
       );
     }
-    const buffer = await this.downloadMedia(channel, source);
+    const decoded = source.startsWith('data:')
+      ? this.decodeDataUrl(source)
+      : null;
+    const buffer = decoded?.buffer ?? await this.downloadMedia(channel, source);
+    const mimeType =
+      hint.mimeType ||
+      decoded?.mimeType ||
+      this.mimeTypeFromSource(source, hint.originalFilename) ||
+      'application/octet-stream';
     const saved = await this.uploads.saveInboundMedia({
       buffer,
-      mimeType: hint.mimeType || 'application/octet-stream',
+      mimeType,
       channelId: channel.id,
       originalFilename: hint.originalFilename ?? null,
     });
     return { fileUrl: saved.url, mimeType: saved.mimeType };
+  }
+
+  private decodeDataUrl(dataUrl: string): { buffer: Buffer; mimeType?: string } {
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/i);
+    if (!match) {
+      throw new Error('Invalid Evolution data URL');
+    }
+    return {
+      buffer: Buffer.from(match[2], 'base64'),
+      mimeType: match[1],
+    };
+  }
+
+  private mimeTypeFromSource(
+    source: string,
+    originalFilename?: string | null,
+  ): string | undefined {
+    const candidate = (originalFilename || source).split('?')[0].split('#')[0];
+    const ext = candidate.includes('.')
+      ? candidate.slice(candidate.lastIndexOf('.')).toLowerCase()
+      : '';
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      case '.heic':
+        return 'image/heic';
+      case '.mp3':
+      case '.mpeg':
+      case '.mpga':
+        return 'audio/mpeg';
+      case '.ogg':
+      case '.oga':
+        return 'audio/ogg';
+      case '.m4a':
+        return 'audio/mp4';
+      case '.wav':
+        return 'audio/wav';
+      case '.webm':
+        return 'audio/webm';
+      case '.mp4':
+        return 'video/mp4';
+      case '.mov':
+        return 'video/quicktime';
+      case '.3gp':
+        return 'video/3gpp';
+      case '.pdf':
+        return 'application/pdf';
+      case '.zip':
+        return 'application/zip';
+      case '.txt':
+        return 'text/plain';
+      case '.csv':
+        return 'text/csv';
+      default:
+        return undefined;
+    }
   }
 
   async deleteMessage(

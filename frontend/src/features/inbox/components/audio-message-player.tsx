@@ -19,10 +19,12 @@ export function AudioMessagePlayer({
   message,
   isOutbound,
   onTranscribed,
+  forceResolve = false,
 }: {
   message: Message;
   isOutbound: boolean;
   onTranscribed?: (t: TranscriptionResult) => void;
+  forceResolve?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -36,14 +38,15 @@ export function AudioMessagePlayer({
   // carries an encrypted .enc CDN link. We hit the backend to resolve (and
   // cache) a decrypted URL on first play. Outbound audios already have
   // content.mediaUrl pointing to our own upload.
-  const initialMediaUrl = message.content?.mediaUrl as string | undefined;
+  const initialMediaUrl =
+    forceResolve ? undefined : (message.content?.mediaUrl as string | undefined);
   const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(initialMediaUrl);
   const [resolving, setResolving] = useState(false);
   const mediaUrl = resolvedUrl;
 
   useEffect(() => {
-    setResolvedUrl(message.content?.mediaUrl);
-  }, [message.content?.mediaUrl]);
+    setResolvedUrl(forceResolve ? undefined : (message.content?.mediaUrl as string | undefined));
+  }, [message.content?.mediaUrl, forceResolve]);
 
   const ensureResolved = async (): Promise<string | null> => {
     if (resolvedUrl) return resolvedUrl;
@@ -95,7 +98,7 @@ export function AudioMessagePlayer({
   const handleTogglePlay = async () => {
     setError(null);
     try {
-      if (!resolvedUrl) {
+      if (!resolvedUrl || forceResolve) {
         // Lazy-resolve on first play so we don't hit the provider on every
         // audio message in the list (e.g., loading a conversation with 50 audios).
         setLoading(true);

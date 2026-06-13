@@ -28,12 +28,16 @@ import { inboxService, type Message, type TranscriptionResult } from '../service
 interface MediaProps {
   message: Message;
   isOutbound: boolean;
+  forceResolve?: boolean;
 }
 
-export function MediaImage({ message, isOutbound }: MediaProps) {
+export function MediaImage({ message, isOutbound, forceResolve = false }: MediaProps) {
   // Eager: imagem aparece assim que a mensagem renderiza, sem precisar de
   // clique pra disparar o resolve.
-  const { url, loading, error, retry } = useResolvedMedia(message, { mode: 'eager' });
+  const { url, loading, error, retry } = useResolvedMedia(message, {
+    mode: 'eager',
+    forceResolve,
+  });
   const [zoomOpen, setZoomOpen] = useState(false);
   const caption = message.content?.caption as string | undefined;
 
@@ -167,8 +171,11 @@ function ImageTranscription({ message, isOutbound }: MediaProps) {
   );
 }
 
-export function MediaVideo({ message, isOutbound }: MediaProps) {
-  const { url, mimeType, loading, error, retry } = useResolvedMedia(message, { mode: 'eager' });
+export function MediaVideo({ message, isOutbound, forceResolve = false }: MediaProps) {
+  const { url, mimeType, loading, error, retry } = useResolvedMedia(message, {
+    mode: 'eager',
+    forceResolve,
+  });
   const caption = message.content?.caption as string | undefined;
 
   return (
@@ -204,8 +211,8 @@ export function MediaVideo({ message, isOutbound }: MediaProps) {
   );
 }
 
-export function MediaDocument({ message, isOutbound }: MediaProps) {
-  const { url, loading, error, retry } = useResolvedMedia(message);
+export function MediaDocument({ message, isOutbound, forceResolve = false }: MediaProps) {
+  const { url, loading, error, retry } = useResolvedMedia(message, { forceResolve });
   const filename = (message.content?.fileName as string | undefined) || 'Documento';
   const mimeType = (message.content?.mimeType as string | undefined) || '';
   const caption = message.content?.caption as string | undefined;
@@ -260,8 +267,11 @@ export function MediaDocument({ message, isOutbound }: MediaProps) {
   );
 }
 
-export function MediaSticker({ message, isOutbound }: MediaProps) {
-  const { url, loading, error, retry } = useResolvedMedia(message, { mode: 'eager' });
+export function MediaSticker({ message, isOutbound, forceResolve = false }: MediaProps) {
+  const { url, loading, error, retry } = useResolvedMedia(message, {
+    mode: 'eager',
+    forceResolve,
+  });
 
   if (url) {
     return (
